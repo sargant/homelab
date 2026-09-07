@@ -16,18 +16,11 @@ cat >>"$TARGET" <<'EOF'
 
 # >>> homelab prompt >>>
 _homelab_prompt() {
-  local user_colour
-
   if (( EUID == 0 )); then
-    user_colour='\[\e[1m\e[38;5;203m\]'
+    PS1='\n\[\e[38;5;114m\]\h\[\e[0m\]:\[\e[38;5;117m\]\w\[\e[0m\]\n\[\e[1;38;5;203m\]\u\[\e[0m\] \$ '
   else
-    user_colour='\[\e[38;5;229m\]'
+    PS1='\n\[\e[38;5;114m\]\h\[\e[0m\]:\[\e[38;5;117m\]\w\[\e[0m\]\n\[\e[38;5;229m\]\u\[\e[0m\] \$ '
   fi
-
-  local host_colour='\[\e[38;5;114m\]'
-  local path_colour='\[\e[38;5;117m\]'
-
-  PS1='\n'"${host_colour}"'\h\[\e[0m\]:'"${path_colour}"'\w\[\e[0m\]\n'"${user_colour}"'\u\[\e[0m\] \$ '
 }
 
 if [[ $- == *i* ]]; then
