@@ -40,6 +40,7 @@ PRIMARY_GROUP="$(id -gn "$USERNAME")"
 
 install -d -o "$USERNAME" -g "$PRIMARY_GROUP" -m 700 "$HOME_DIR/.ssh"
 install -o "$USERNAME" -g "$PRIMARY_GROUP" -m 600 "$keys_tmp" "$HOME_DIR/.ssh/authorized_keys"
+install -o "$USERNAME" -g "$PRIMARY_GROUP" -m 600 /dev/null "$HOME_DIR/.hushlogin"
 
 printf '%s ALL=(ALL:ALL) NOPASSWD: ALL\n' "$USERNAME" >"$sudoers_tmp"
 visudo -cf "$sudoers_tmp" >/dev/null
