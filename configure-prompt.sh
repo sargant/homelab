@@ -7,9 +7,9 @@ TARGET=/etc/bash.bashrc
 START_MARKER='# >>> homelab prompt >>>'
 END_MARKER='# <<< homelab prompt <<<'
 
+# Replace our existing managed block so rerunning this script applies updates.
 if grep -qF "$START_MARKER" "$TARGET"; then
-  echo "Prompt already configured in $TARGET."
-  exit 0
+  sed -i "/^${START_MARKER}$/,/^${END_MARKER}$/d" "$TARGET"
 fi
 
 cat >>"$TARGET" <<'EOF'
@@ -21,7 +21,7 @@ _homelab_prompt() {
   if (( EUID == 0 )); then
     user_colour='\[\e[1m\e[38;5;203m\]'
   else
-    user_colour='\[\e[1m\e[38;5;231m\]'
+    user_colour='\[\e[38;5;229m\]'
   fi
 
   local host_colour='\[\e[38;5;114m\]'
