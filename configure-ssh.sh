@@ -51,6 +51,10 @@ if ! /usr/sbin/sshd -t; then
   exit 1
 fi
 
-systemctl reload ssh
+# Debian 13 enables SSH socket activation by default. Use a conventional
+# always-running sshd so reloads/restarts do not collide with ssh.socket on port 22.
+systemctl disable --now ssh.socket
+systemctl enable ssh.service
+systemctl restart ssh.service
 
 echo "Done. SSH password authentication is disabled; local TTY password login is unchanged."
