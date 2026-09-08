@@ -16,6 +16,20 @@ if pct status 1000 >/dev/null 2>&1; then
   exit 1
 fi
 
+cat <<'EOF'
+Before continuing, configure your DHCP server with a reservation for ops:
+
+  Name:       ops
+  MAC:        02:97:82:31:80:54
+  Network:    192.168.37.0/24
+  Fixed IP:   choose the reserved IPv4 address for ops
+
+The LXC itself will use DHCP; this reservation gives it its permanent address.
+EOF
+
+read -r -n 1 -p "Press any key once the DHCP reservation is configured..."
+echo
+
 echo "Finding the latest Debian 13 LXC template..."
 pveam update >/dev/null
 template="$(pveam available --section system | awk '$2 ~ /^debian-13-standard_/ { print $2 }' | sort -V | tail -n 1)"
@@ -37,7 +51,7 @@ pct create 1000 "local:vztmpl/$template" \
   --memory 512 \
   --swap 512 \
   --rootfs local-lvm:8 \
-  --net0 "name=eth0,bridge=vmbr0,firewall=1,ip=dhcp,ip6=auto,type=veth" \
+  --net0 "name=eth0,bridge=vmbr0,firewall=1,hwaddr=02:97:82:31:80:54,ip=dhcp,ip6=auto,type=veth" \
   --onboot 1 \
   --startup order=1 \
   --unprivileged 1 \
