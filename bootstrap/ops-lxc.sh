@@ -32,7 +32,7 @@ pct create 1000 "local:vztmpl/$template" \
   --memory 512 \
   --swap 512 \
   --rootfs local-lvm:8 \
-  --net0 "name=eth0,bridge=vmbr0,firewall=1,ip=dhcp,ip6=dhcp,type=veth" \
+  --net0 "name=eth0,bridge=vmbr0,firewall=1,ip=dhcp,ip6=slaac,type=veth" \
   --onboot 1 \
   --startup order=1 \
   --unprivileged 1 \
