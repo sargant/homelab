@@ -40,6 +40,8 @@ pct create 1000 "local:vztmpl/$template" \
   --tags "bootstrap;ops" \
   --description "Homelab management entrypoint; bootstrapped outside OpenTofu."
 
+trap 'echo "Bootstrap failed; removing CTID 1000." >&2; pct stop 1000 >/dev/null 2>&1 || true; pct destroy 1000 --purge 1 >/dev/null 2>&1 || true' ERR
+
 pct start 1000
 
 echo "Waiting for network connectivity..."
@@ -79,6 +81,8 @@ apt-get install -y tofu
 
 pct exec 1000 -- runuser -u rob -- git clone https://github.com/sargant/homelab-bootstrap.git /home/rob/homelab-bootstrap
 pct exec 1000 -- rm -rf /root/homelab-bootstrap
+
+trap - ERR
 
 echo
 echo "Ops LXC is ready."
