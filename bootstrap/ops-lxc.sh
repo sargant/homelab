@@ -11,6 +11,11 @@ if [[ "$PWD" != "/root/homelab-bootstrap" || ! -d /root/homelab-bootstrap/.git ]
   exit 1
 fi
 
+if pct status 1000 >/dev/null 2>&1; then
+  echo "CTID 1000 already exists; refusing to modify it." >&2
+  exit 1
+fi
+
 cat <<'EOF'
 Before continuing, configure your DHCP server with a reservation for ops:
 
@@ -24,11 +29,6 @@ EOF
 
 read -r -n 1 -p "Press any key once the DHCP reservation is configured..."
 echo
-
-if pct status 1000 >/dev/null 2>&1; then
-  echo "CTID 1000 already exists; refusing to modify it." >&2
-  exit 1
-fi
 
 echo "Finding the latest Debian 13 LXC template..."
 pveam update >/dev/null
