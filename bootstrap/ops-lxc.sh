@@ -6,6 +6,11 @@ if [[ ${EUID} -ne 0 ]]; then
   exit 1
 fi
 
+if [[ "$PWD" != "/root/homelab-bootstrap" || ! -d /root/homelab-bootstrap/.git ]]; then
+  echo "Clone homelab-bootstrap to /root/homelab-bootstrap and run this script from there." >&2
+  exit 1
+fi
+
 if pct status 1000 >/dev/null 2>&1; then
   echo "CTID 1000 already exists; refusing to modify it." >&2
   exit 1
@@ -32,7 +37,7 @@ pct create 1000 "local:vztmpl/$template" \
   --memory 512 \
   --swap 512 \
   --rootfs local-lvm:8 \
-  --net0 "name=eth0,bridge=vmbr0,firewall=1,ip=dhcp,ip6=slaac,type=veth" \
+  --net0 "name=eth0,bridge=vmbr0,firewall=1,ip=dhcp,ip6=auto,type=veth" \
   --onboot 1 \
   --startup order=1 \
   --unprivileged 1 \
@@ -54,9 +59,9 @@ done
 pct exec 1000 -- getent hosts github.com >/dev/null
 
 pct exec 1000 -- mkdir -p /root/homelab-bootstrap
-pct push 1000 common.sh /root/homelab-bootstrap/common.sh
-pct push 1000 configure-access.sh /root/homelab-bootstrap/configure-access.sh
-pct push 1000 configure-prompt.sh /root/homelab-bootstrap/configure-prompt.sh
+pct push 1000 /root/homelab-bootstrap/common.sh /root/homelab-bootstrap/common.sh
+pct push 1000 /root/homelab-bootstrap/configure-access.sh /root/homelab-bootstrap/configure-access.sh
+pct push 1000 /root/homelab-bootstrap/configure-prompt.sh /root/homelab-bootstrap/configure-prompt.sh
 pct exec 1000 -- chmod 755 /root/homelab-bootstrap/configure-access.sh /root/homelab-bootstrap/configure-prompt.sh
 
 pct exec 1000 -- /root/homelab-bootstrap/configure-access.sh
