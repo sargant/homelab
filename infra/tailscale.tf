@@ -32,7 +32,7 @@ resource "proxmox_virtual_environment_container" "tailscale" {
       }
 
       ipv6 {
-        address = "dhcp"
+        address = "auto"
       }
     }
   }
