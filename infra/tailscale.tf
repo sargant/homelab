@@ -45,7 +45,7 @@ resource "proxmox_virtual_environment_container" "tailscale" {
   }
 
   operating_system {
-    template_file_id = "local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst"
+    template_file_id = proxmox_download_file.debian_13.id
     type             = "debian"
   }
 
