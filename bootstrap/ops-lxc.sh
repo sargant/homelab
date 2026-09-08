@@ -30,12 +30,12 @@ EOF
 read -r -n 1 -p "Press any key once the DHCP reservation is configured..."
 echo
 
-echo "Finding the latest Debian 13 LXC template..."
+echo "Finding the latest Debian 13 amd64 LXC template..."
 pveam update >/dev/null
-template="$(pveam available --section system | awk '$2 ~ /^debian-13-standard_/ { print $2 }' | sort -V | tail -n 1)"
+template="$(pveam available --section system | awk '$2 ~ /^debian-13-standard_.*_amd64\.tar/ { print $2 }' | sort -V | tail -n 1)"
 
 if [[ -z "$template" ]]; then
-  echo "No Debian 13 standard LXC template is available." >&2
+  echo "No Debian 13 amd64 standard LXC template is available." >&2
   exit 1
 fi
 
@@ -47,10 +47,12 @@ fi
 echo "Creating ops LXC 1000..."
 pct create 1000 "local:vztmpl/$template" \
   --hostname ops \
+  --arch amd64 \
   --cores 1 \
   --memory 512 \
   --swap 512 \
   --rootfs local-lvm:8 \
+  --features nesting=1 \
   --net0 "name=eth0,bridge=vmbr0,firewall=1,hwaddr=02:97:82:31:80:54,ip=dhcp,ip6=auto,type=veth" \
   --onboot 1 \
   --startup order=1 \
