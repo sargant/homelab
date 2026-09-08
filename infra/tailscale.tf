@@ -41,7 +41,7 @@ resource "proxmox_virtual_environment_container" "tailscale" {
     name        = "eth0"
     bridge      = "vmbr0"
     firewall    = true
-    mac_address = "02:00:00:00:10:21"
+    mac_address = "02:EE:88:40:BC:33"
   }
 
   operating_system {
