@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CTID="${CTID:-1000}"
-OPS_HOSTNAME="${OPS_HOSTNAME:-ops}"
-TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"
-ROOTFS_STORAGE="${ROOTFS_STORAGE:-local-lvm}"
-BRIDGE="${BRIDGE:-vmbr0}"
-CORES="${CORES:-1}"
-MEMORY_MB="${MEMORY_MB:-512}"
-SWAP_MB="${SWAP_MB:-512}"
-DISK_GB="${DISK_GB:-8}"
-REPO_URL="${REPO_URL:-https://github.com/sargant/homelab-bootstrap.git}"
+CTID=1000
+OPS_HOSTNAME="ops"
+TEMPLATE_STORAGE="local"
+ROOTFS_STORAGE="local-lvm"
+BRIDGE="vmbr0"
+CORES=1
+MEMORY_MB=512
+SWAP_MB=512
+DISK_GB=8
+REPO_URL="https://github.com/sargant/homelab-bootstrap.git"
 
 if [[ ${EUID} -ne 0 ]]; then
   echo "This script must be run as root on a Proxmox VE host." >&2
