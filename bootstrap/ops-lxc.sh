@@ -6,8 +6,8 @@ if [[ ${EUID} -ne 0 ]]; then
   exit 1
 fi
 
-if [[ "$PWD" != "/root/homelab-bootstrap" || ! -d /root/homelab-bootstrap/.git ]]; then
-  echo "Clone homelab-bootstrap to /root/homelab-bootstrap and run this script from there." >&2
+if [[ "$PWD" != "/root/homelab" || ! -d /root/homelab/.git ]]; then
+  echo "Clone homelab to /root/homelab and run this script from there." >&2
   exit 1
 fi
 
@@ -72,14 +72,14 @@ for _ in {1..30}; do
 done
 pct exec 1000 -- getent hosts github.com >/dev/null
 
-pct exec 1000 -- mkdir -p /root/homelab-bootstrap
-pct push 1000 /root/homelab-bootstrap/common.sh /root/homelab-bootstrap/common.sh
-pct push 1000 /root/homelab-bootstrap/configure-access.sh /root/homelab-bootstrap/configure-access.sh
-pct push 1000 /root/homelab-bootstrap/configure-prompt.sh /root/homelab-bootstrap/configure-prompt.sh
-pct exec 1000 -- chmod 755 /root/homelab-bootstrap/configure-access.sh /root/homelab-bootstrap/configure-prompt.sh
+pct exec 1000 -- mkdir -p /root/homelab
+pct push 1000 /root/homelab/common.sh /root/homelab/common.sh
+pct push 1000 /root/homelab/configure-access.sh /root/homelab/configure-access.sh
+pct push 1000 /root/homelab/configure-prompt.sh /root/homelab/configure-prompt.sh
+pct exec 1000 -- chmod 755 /root/homelab/configure-access.sh /root/homelab/configure-prompt.sh
 
-pct exec 1000 -- /root/homelab-bootstrap/configure-access.sh
-pct exec 1000 -- /root/homelab-bootstrap/configure-prompt.sh
+pct exec 1000 -- /root/homelab/configure-access.sh
+pct exec 1000 -- /root/homelab/configure-prompt.sh
 
 pct exec 1000 -- bash -lc '
 set -euo pipefail
@@ -98,8 +98,8 @@ apt-get update
 apt-get install -y tofu
 '
 
-pct exec 1000 -- runuser -u rob -- git clone https://github.com/sargant/homelab-bootstrap.git /home/rob/homelab-bootstrap
-pct exec 1000 -- rm -rf /root/homelab-bootstrap
+pct exec 1000 -- runuser -u rob -- git clone https://github.com/sargant/homelab.git /home/rob/homelab
+pct exec 1000 -- rm -rf /root/homelab
 
 trap - ERR
 
@@ -109,4 +109,4 @@ echo "  CTID:     1000"
 echo "  Hostname: ops"
 echo "  IPv4:     $(pct exec 1000 -- hostname -I | awk '{ print $1 }')"
 echo "  OpenTofu: $(pct exec 1000 -- tofu version | sed -n '1p')"
-echo "  Repo:     /home/rob/homelab-bootstrap"
+echo "  Repo:     /home/rob/homelab"
