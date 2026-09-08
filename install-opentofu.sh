@@ -6,8 +6,8 @@ set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
 
-if command -v tofu >/dev/null 2>&1 || [[ -e /etc/apt/sources.list.d/opentofu.list ]]; then
-  echo "OpenTofu already appears to be configured; refusing to modify the existing setup." >&2
+if command -v tofu >/dev/null 2>&1; then
+  echo "OpenTofu is already installed; refusing to modify the existing setup." >&2
   exit 1
 fi
 
