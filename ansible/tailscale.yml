@@ -1,0 +1,424 @@
+---
+- name: Configure Tailscale subnet router
+  hosts: tailscale
+  gather_facts: false
+
+  vars:
+    tailscale_hostname: tailscale
+    tailscale_subnet_route: 192.168.37.0/24
+    tailscale_lan_interface: eth0
+    tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_AUTH_KEY') }}"
+
+  pre_tasks:
+    - name: Bootstrap Python
+      ansible.builtin.raw: |
+        if [ ! -x /usr/bin/python3 ]; then
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y python3
+          echo __ANSIBLE_CHANGED__
+        fi
+      register: python_bootstrap
+      changed_when: "'__ANSIBLE_CHANGED__' in python_bootstrap.stdout"
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Check operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution == "Debian"
+          - ansible_facts.distribution_major_version == "13"
+        fail_msg: >-
+          Expected Debian 13, found
+          {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}.
+
+    - name: Check TUN device
+      ansible.builtin.stat:
+        path: /dev/net/tun
+      register: tailscale_tun
+
+    - name: Require TUN device passthrough
+      ansible.builtin.assert:
+        that:
+          - tailscale_tun.stat.exists
+          - tailscale_tun.stat.ischr | default(false)
+        fail_msg: /dev/net/tun is not available in the container.
+
+    - name: Check LAN interface
+      ansible.builtin.command:
+        argv:
+          - ip
+          - link
+          - show
+          - "{{ tailscale_lan_interface }}"
+      changed_when: false
+
+  tasks:
+    - name: Install prerequisites
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - ethtool
+          - jq
+          - procps
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install Tailscale repository key
+      ansible.builtin.get_url:
+        url: https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg
+        dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+        mode: "0644"
+
+    - name: Install Tailscale repository definition
+      ansible.builtin.get_url:
+        url: https://pkgs.tailscale.com/stable/debian/trixie.tailscale-keyring.list
+        dest: /etc/apt/sources.list.d/tailscale.list
+        mode: "0644"
+
+    - name: Install Tailscale
+      ansible.builtin.apt:
+        name: tailscale
+        state: present
+        update_cache: true
+
+    - name: Configure IP forwarding
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-tailscale.conf
+        mode: "0644"
+        content: |
+          net.ipv4.ip_forward = 1
+          net.ipv6.conf.all.forwarding = 1
+          net.ipv6.conf.{{ tailscale_lan_interface }}.accept_ra = 2
+
+    - name: Apply IP forwarding settings
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - -p
+          - /etc/sysctl.d/99-tailscale.conf
+      changed_when: false
+
+    - name: Configure UDP GRO service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/tailscale-gro.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Configure UDP GRO forwarding for Tailscale
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/sbin/ethtool -K {{ tailscale_lan_interface }} rx-udp-gro-forwarding on rx-gro-list off
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+      register: tailscale_gro_unit
+
+    - name: Reload systemd after configuring UDP GRO service
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - daemon-reload
+      changed_when: false
+
+    - name: Read current UDP GRO settings
+      ansible.builtin.command:
+        argv:
+          - ethtool
+          - -k
+          - "{{ tailscale_lan_interface }}"
+      register: tailscale_gro_current
+      changed_when: false
+
+    - name: Enable UDP GRO service
+      ansible.builtin.systemd_service:
+        name: tailscale-gro.service
+        enabled: true
+        state: >-
+          {{
+            'restarted'
+            if tailscale_gro_unit.changed
+              or 'rx-udp-gro-forwarding: on' not in tailscale_gro_current.stdout
+              or 'rx-gro-list: off' not in tailscale_gro_current.stdout
+            else 'started'
+          }}
+
+    - name: Enable Tailscale daemon
+      ansible.builtin.systemd_service:
+        name: tailscaled
+        enabled: true
+        state: started
+
+    - name: Read initial Tailscale backend state
+      ansible.builtin.shell: |
+        set -o pipefail
+        tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"' || true
+      args:
+        executable: /bin/bash
+      register: tailscale_initial_status
+      changed_when: false
+
+    - name: Read initial Tailscale online state
+      ansible.builtin.shell: |
+        set -o pipefail
+        tailscale status --json 2>/dev/null | jq -r '.Self.Online // false' || true
+      args:
+        executable: /bin/bash
+      register: tailscale_initial_online
+      changed_when: false
+
+    - name: Restart stale Tailscale daemon
+      ansible.builtin.systemd_service:
+        name: tailscaled
+        state: restarted
+      when:
+        - tailscale_initial_status.stdout | trim == "Running"
+        - tailscale_initial_online.stdout | trim != "true"
+
+    - name: Wait for Tailscale backend state to settle
+      ansible.builtin.shell: |
+        set -o pipefail
+        tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"' || true
+      args:
+        executable: /bin/bash
+      register: tailscale_status
+      changed_when: false
+      retries: 10
+      delay: 2
+      until: >-
+        tailscale_status.stdout | trim in
+        ["Running", "NeedsLogin", "NeedsMachineAuth", "NoState", "Stopped"]
+
+    - name: Require device approval when Tailscale is waiting for machine authorization
+      ansible.builtin.assert:
+        that:
+          - tailscale_status.stdout | trim != "NeedsMachineAuth"
+        fail_msg: |
+          ACTION REQUIRED: this machine is waiting for Tailscale device approval.
+
+          In the Tailscale admin console, approve the pending {{ tailscale_hostname }} machine,
+          then rerun this playbook.
+
+    - name: Require auth key when Tailscale needs login
+      ansible.builtin.assert:
+        that:
+          - tailscale_auth_key | length > 0
+        fail_msg: >-
+          TAILSCALE_AUTH_KEY must be set in the Ansible controller environment
+          when this node needs to join the tailnet.
+      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+
+    - name: Authenticate Tailscale
+      ansible.builtin.shell: >-
+        tailscale up
+        --auth-key="$TS_AUTH_KEY"
+        --hostname="{{ tailscale_hostname }}"
+        --advertise-routes="{{ tailscale_subnet_route }}"
+        --advertise-exit-node
+      environment:
+        TS_AUTH_KEY: "{{ tailscale_auth_key }}"
+      no_log: true
+      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+
+    - name: Wait for post-enrollment Tailscale state to settle
+      ansible.builtin.shell: |
+        set -o pipefail
+        tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"' || true
+      args:
+        executable: /bin/bash
+      register: tailscale_post_enrollment_status
+      changed_when: false
+      retries: 10
+      delay: 2
+      until: >-
+        tailscale_post_enrollment_status.stdout | trim in
+        ["Running", "NeedsMachineAuth"]
+      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+
+    - name: Require device approval after Tailscale enrollment
+      ansible.builtin.assert:
+        that:
+          - tailscale_post_enrollment_status.stdout | trim != "NeedsMachineAuth"
+        fail_msg: |
+          ACTION REQUIRED: this machine joined the tailnet but is waiting for Tailscale device approval.
+
+          In the Tailscale admin console, approve the pending {{ tailscale_hostname }} machine,
+          then rerun this playbook.
+      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+
+    - name: Start existing Tailscale identity
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - up
+      when: tailscale_status.stdout | trim == "Stopped"
+
+    - name: Configure Tailscale settings
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - set
+          - "--hostname={{ tailscale_hostname }}"
+          - "--advertise-routes={{ tailscale_subnet_route }}"
+          - --advertise-exit-node
+      changed_when: false
+
+    - name: Configure Tailscale web console service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/tailscale-web.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Tailscale web console
+          After=tailscaled.service
+          Requires=tailscaled.service
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/bin/tailscale web --listen=0.0.0.0:80
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+      register: tailscale_web_unit
+
+    - name: Reload systemd after configuring Tailscale web console
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - daemon-reload
+      changed_when: false
+
+    - name: Enable Tailscale web console
+      ansible.builtin.systemd_service:
+        name: tailscale-web.service
+        enabled: true
+        state: "{{ 'restarted' if tailscale_web_unit.changed else 'started' }}"
+
+    - name: Wait for Tailscale to be online
+      ansible.builtin.shell: |
+        set -o pipefail
+        tailscale status --json | jq -r '(.BackendState // "Unknown") + ":" + ((.Self.Online // false) | tostring)'
+      args:
+        executable: /bin/bash
+      register: tailscale_final_status
+      changed_when: false
+      retries: 10
+      delay: 2
+      until: tailscale_final_status.stdout | trim == "Running:true"
+
+    - name: Read Tailscale IPv4 address
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - ip
+          - -4
+      register: tailscale_ipv4
+      changed_when: false
+
+    - name: Verify IPv4 forwarding
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - -n
+          - net.ipv4.ip_forward
+      register: tailscale_ipv4_forward
+      changed_when: false
+
+    - name: Verify IPv6 forwarding
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - -n
+          - net.ipv6.conf.all.forwarding
+      register: tailscale_ipv6_forward
+      changed_when: false
+
+    - name: Read UDP GRO settings
+      ansible.builtin.command:
+        argv:
+          - ethtool
+          - -k
+          - "{{ tailscale_lan_interface }}"
+      register: tailscale_gro
+      changed_when: false
+
+    - name: Verify router settings
+      ansible.builtin.assert:
+        that:
+          - tailscale_ipv4.stdout | trim | length > 0
+          - tailscale_ipv4_forward.stdout | trim == "1"
+          - tailscale_ipv6_forward.stdout | trim == "1"
+          - "tailscale_gro.stdout is regex('(?m)^rx-udp-gro-forwarding: on')"
+          - "tailscale_gro.stdout is regex('(?m)^rx-gro-list: off')"
+
+    - name: Wait for web console
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 80
+        timeout: 10
+
+    - name: Read Tailscale route approval metrics
+      ansible.builtin.shell: |
+        set -o pipefail
+        tailscale metrics print | awk '
+          $1 == "tailscaled_advertised_routes" { advertised = $2 }
+          $1 == "tailscaled_approved_routes" { approved = $2 }
+          END { print advertised ":" approved }
+        '
+      args:
+        executable: /bin/bash
+      register: tailscale_route_metrics
+      changed_when: false
+
+    - name: Verify subnet route approval
+      ansible.builtin.assert:
+        that:
+          - tailscale_route_metrics.stdout | trim == "1:1"
+        fail_msg: |
+          ACTION REQUIRED: the Tailscale subnet route is advertised but is not approved.
+
+          In the Tailscale admin console:
+            Machines -> {{ tailscale_hostname }} -> Edit route settings
+            -> approve {{ tailscale_subnet_route }}
+
+          Then rerun this playbook.
+
+    - name: Refresh Tailscale status for exit node approval
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - status
+          - --json
+      register: tailscale_approval_status
+      changed_when: false
+
+    - name: Verify exit node approval
+      ansible.builtin.assert:
+        that:
+          - (tailscale_approval_status.stdout | from_json).Self.ExitNodeOption | default(false)
+        fail_msg: |
+          ACTION REQUIRED: this machine is advertising itself as an exit node,
+          but the exit node has not been approved.
+
+          In the Tailscale admin console:
+            Machines -> {{ tailscale_hostname }} -> Edit route settings
+            -> approve the exit node
+
+          Then rerun this playbook.
+
+    - name: Report Tailscale router status
+      ansible.builtin.debug:
+        msg:
+          - "Tailscale IPv4: {{ tailscale_ipv4.stdout | trim }}"
+          - "Advertised subnet: {{ tailscale_subnet_route }}"
+          - "Subnet route: approved"
+          - "Exit node: approved"
+          - "Web console: http://tailscale.home.arpa/"
