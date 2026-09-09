@@ -77,13 +77,12 @@
         url: https://pkgs.tailscale.com/stable/debian/trixie.tailscale-keyring.list
         dest: /etc/apt/sources.list.d/tailscale.list
         mode: "0644"
-      register: tailscale_repo
 
     - name: Install Tailscale
       ansible.builtin.apt:
         name: tailscale
         state: present
-        update_cache: "{{ tailscale_repo.changed }}"
+        update_cache: true
 
     - name: Configure IP forwarding
       ansible.builtin.copy:
@@ -214,16 +213,14 @@
         argv:
           - tailscale
           - up
-          - "--hostname={{ tailscale_hostname }}"
-          - "--advertise-routes={{ tailscale_subnet_route }}"
-          - --advertise-exit-node
       when: tailscale_status.stdout | trim == "Stopped"
 
-    - name: Configure advertised routes
+    - name: Configure Tailscale settings
       ansible.builtin.command:
         argv:
           - tailscale
           - set
+          - "--hostname={{ tailscale_hostname }}"
           - "--advertise-routes={{ tailscale_subnet_route }}"
           - --advertise-exit-node
       changed_when: false
