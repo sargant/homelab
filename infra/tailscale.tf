@@ -26,6 +26,12 @@ resource "proxmox_virtual_environment_container" "tailscale" {
   initialization {
     hostname = "tailscale"
 
+    user_account {
+      keys = [
+        trimspace(file("/root/.ssh/ansible-bootstrap.pub"))
+      ]
+    }
+
     ip_config {
       ipv4 {
         address = "dhcp"
