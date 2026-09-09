@@ -14,7 +14,6 @@
     printer_ppd: "/etc/cups/ppd/{{ printer_queue }}.ppd"
     brlaser_filter: /usr/lib/cups/filter/rastertobrlaser
     supply_wrapper: /usr/lib/cups/filter/rastertobrlaser-with-supplies
-    print_test: false
 
     toner_oid: "1.3.6.1.4.1.1240.2.3.4.6.4.0"
     drum_max_oid: "1.3.6.1.2.1.43.11.1.1.8.1.2"
@@ -347,47 +346,12 @@
       register: airprint_status
       changed_when: false
 
-    - name: Send optional physical test print
-      ansible.builtin.shell: |
-        printf 'AirPrint bridge test\n' | lp -d "{{ printer_queue }}"
-      args:
-        executable: /bin/bash
-      when: print_test | bool
-
-    - name: Wait for optional test print pipeline
-      ansible.builtin.pause:
-        seconds: 3
-      when: print_test | bool
-
-    - name: Read marker attributes after optional test print
-      ansible.builtin.shell: |
-        set -o pipefail
-        ipptool -tv "ipp://localhost:631/printers/{{ printer_queue }}" \
-          get-printer-attributes.test 2>/dev/null |
-          grep -i marker || true
-      args:
-        executable: /bin/bash
-      register: marker_attributes
-      changed_when: false
-      when: print_test | bool
-
     - name: Report print server status
       ansible.builtin.debug:
         msg:
           - "{{ verification.stdout_lines }}"
           - "{{ airprint_status.stdout_lines }}"
-          - >-
-            Physical test page:
-            {{ 'printed' if print_test | bool else 'not requested' }}
           - "Caddy/reverse-proxy configuration is not managed by this playbook."
-          - >-
-            To send the optional real test print, rerun with
-            -e print_test=true.
-
-    - name: Report marker attributes after optional test print
-      ansible.builtin.debug:
-        var: marker_attributes.stdout_lines
-      when: print_test | bool
 
   handlers:
     - name: Restart CUPS
