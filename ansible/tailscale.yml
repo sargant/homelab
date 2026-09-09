@@ -120,6 +120,13 @@
           WantedBy=multi-user.target
       register: tailscale_gro_unit
 
+    - name: Reload systemd after configuring UDP GRO service
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - daemon-reload
+      changed_when: false
+
     - name: Read current UDP GRO settings
       ansible.builtin.command:
         argv:
@@ -132,7 +139,6 @@
     - name: Enable UDP GRO service
       ansible.builtin.systemd_service:
         name: tailscale-gro.service
-        daemon_reload: "{{ tailscale_gro_unit.changed }}"
         enabled: true
         state: >-
           {{
@@ -185,7 +191,19 @@
       changed_when: false
       retries: 10
       delay: 2
-      until: tailscale_status.stdout | trim in ["Running", "NeedsLogin", "NoState", "Stopped"]
+      until: >-
+        tailscale_status.stdout | trim in
+        ["Running", "NeedsLogin", "NeedsMachineAuth", "NoState", "Stopped"]
+
+    - name: Require device approval when Tailscale is waiting for machine authorization
+      ansible.builtin.assert:
+        that:
+          - tailscale_status.stdout | trim != "NeedsMachineAuth"
+        fail_msg: |
+          ACTION REQUIRED: this machine is waiting for Tailscale device approval.
+
+          In the Tailscale admin console, approve the pending {{ tailscale_hostname }} machine,
+          then rerun this playbook.
 
     - name: Require auth key when Tailscale needs login
       ansible.builtin.assert:
@@ -245,10 +263,16 @@
           WantedBy=multi-user.target
       register: tailscale_web_unit
 
+    - name: Reload systemd after configuring Tailscale web console
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - daemon-reload
+      changed_when: false
+
     - name: Enable Tailscale web console
       ansible.builtin.systemd_service:
         name: tailscale-web.service
-        daemon_reload: "{{ tailscale_web_unit.changed }}"
         enabled: true
         state: "{{ 'restarted' if tailscale_web_unit.changed else 'started' }}"
 
