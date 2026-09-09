@@ -60,6 +60,19 @@ resource "proxmox_virtual_environment_container" "tailscale" {
   start_on_boot = true
   started       = true
   unprivileged  = true
+
+  depends_on = [unifi_client.tailscale]
+}
+
+data "unifi_network" "default" {
+  name = "Default"
+}
+
+resource "unifi_client" "tailscale" {
+  mac        = "02:EE:88:40:BC:33"
+  name       = "tailscale"
+  fixed_ip   = "192.168.37.21"
+  network_id = data.unifi_network.default.id
 }
 
 resource "unifi_dns_record" "tailscale" {
