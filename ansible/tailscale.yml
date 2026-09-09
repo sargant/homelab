@@ -289,10 +289,60 @@
         port: 80
         timeout: 10
 
+    - name: Read Tailscale route approval metrics
+      ansible.builtin.shell: |
+        set -o pipefail
+        tailscale metrics print | awk '
+          $1 == "tailscaled_advertised_routes" { advertised = $2 }
+          $1 == "tailscaled_approved_routes" { approved = $2 }
+          END { print advertised ":" approved }
+        '
+      args:
+        executable: /bin/bash
+      register: tailscale_route_metrics
+      changed_when: false
+
+    - name: Verify subnet route approval
+      ansible.builtin.assert:
+        that:
+          - tailscale_route_metrics.stdout | trim == "1:1"
+        fail_msg: |
+          ACTION REQUIRED: the Tailscale subnet route is advertised but is not approved.
+
+          In the Tailscale admin console:
+            Machines -> {{ tailscale_hostname }} -> Edit route settings
+            -> approve {{ tailscale_subnet_route }}
+
+          Then rerun this playbook.
+
+    - name: Refresh Tailscale status for exit node approval
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - status
+          - --json
+      register: tailscale_approval_status
+      changed_when: false
+
+    - name: Verify exit node approval
+      ansible.builtin.assert:
+        that:
+          - (tailscale_approval_status.stdout | from_json).Self.ExitNodeOption | default(false)
+        fail_msg: |
+          ACTION REQUIRED: this machine is advertising itself as an exit node,
+          but the exit node has not been approved.
+
+          In the Tailscale admin console:
+            Machines -> {{ tailscale_hostname }} -> Edit route settings
+            -> approve the exit node
+
+          Then rerun this playbook.
+
     - name: Report Tailscale router status
       ansible.builtin.debug:
         msg:
           - "Tailscale IPv4: {{ tailscale_ipv4.stdout | trim }}"
           - "Advertised subnet: {{ tailscale_subnet_route }}"
+          - "Subnet route: approved"
+          - "Exit node: approved"
           - "Web console: http://tailscale.home.arpa/"
-          - "If auto-approvers are not configured yet, the subnet route and exit node will remain pending approval."
