@@ -1,12 +1,12 @@
 all:
+  vars:
+    ansible_user: root
+    ansible_ssh_private_key_file: /root/.ssh/ansible-bootstrap
+    ansible_python_interpreter: /usr/bin/python3
+
   hosts:
     tailscale:
       ansible_host: tailscale.home.arpa
-      ansible_user: root
-      ansible_ssh_private_key_file: /root/.ssh/ansible-bootstrap
-      ansible_python_interpreter: /usr/bin/python3
+
     print_server:
       ansible_host: print-server.home.arpa
-      ansible_user: root
-      ansible_ssh_private_key_file: /root/.ssh/ansible-bootstrap
-      ansible_python_interpreter: /usr/bin/python3
