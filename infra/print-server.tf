@@ -1,3 +1,10 @@
+resource "unifi_client" "print_server" {
+  mac              = "02:7A:41:C3:8D:52"
+  name             = "print-server"
+  fixed_ip         = "192.168.37.41"
+  local_dns_record = "print-server.home.arpa"
+}
+
 resource "proxmox_virtual_environment_container" "print_server" {
   node_name = "vm-host"
   vm_id     = 101
@@ -56,4 +63,6 @@ resource "proxmox_virtual_environment_container" "print_server" {
   start_on_boot = true
   started       = true
   unprivileged  = true
+
+  depends_on = [unifi_client.print_server]
 }
