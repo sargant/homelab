@@ -6,7 +6,7 @@
   vars:
     print_server_hostname: print-server
     print_server_host: print-server.home.arpa
-    printer_host: printer.infra.home.arpa
+    printer_host: printer.home.arpa
     printer_queue: Brother_HL_1212W
     printer_name: Brother HL-1212W
     printer_driver_model: drv:///brlaser.drv/br1200.ppd
