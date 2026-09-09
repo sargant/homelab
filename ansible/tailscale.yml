@@ -149,6 +149,32 @@
         enabled: true
         state: started
 
+    - name: Read initial Tailscale backend state
+      ansible.builtin.shell: |
+        set -o pipefail
+        tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"' || true
+      args:
+        executable: /bin/bash
+      register: tailscale_initial_status
+      changed_when: false
+
+    - name: Read initial Tailscale online state
+      ansible.builtin.shell: |
+        set -o pipefail
+        tailscale status --json 2>/dev/null | jq -r '.Self.Online // false' || true
+      args:
+        executable: /bin/bash
+      register: tailscale_initial_online
+      changed_when: false
+
+    - name: Restart stale Tailscale daemon
+      ansible.builtin.systemd_service:
+        name: tailscaled
+        state: restarted
+      when:
+        - tailscale_initial_status.stdout | trim == "Running"
+        - tailscale_initial_online.stdout | trim != "true"
+
     - name: Read Tailscale backend state
       ansible.builtin.shell: |
         set -o pipefail
@@ -226,17 +252,16 @@
         state: "{{ 'restarted' if tailscale_web_unit.changed else 'started' }}"
 
     - name: Wait for Tailscale to be online
-      ansible.builtin.command:
-        argv:
-          - tailscale
-          - status
-          - --json
+      ansible.builtin.shell: |
+        set -o pipefail
+        tailscale status --json | jq -r '(.BackendState // "Unknown") + ":" + ((.Self.Online // false) | tostring)'
+      args:
+        executable: /bin/bash
       register: tailscale_final_status
       changed_when: false
       retries: 10
       delay: 2
-      until: >-
-        (tailscale_final_status.stdout | from_json).BackendState == "Running"
+      until: tailscale_final_status.stdout | trim == "Running:true"
 
     - name: Read Tailscale IPv4 address
       ansible.builtin.command:
