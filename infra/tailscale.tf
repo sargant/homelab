@@ -2,8 +2,10 @@ resource "proxmox_virtual_environment_container" "tailscale" {
   node_name = "vm-host"
   vm_id     = 1021
 
-  architecture = "amd64"
-  cores        = 1
+  cpu {
+    architecture = "amd64"
+    cores        = 1
+  }
 
   memory {
     dedicated = 256
