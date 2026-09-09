@@ -226,6 +226,32 @@
       no_log: true
       when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
 
+    - name: Wait for post-enrollment Tailscale state to settle
+      ansible.builtin.shell: |
+        set -o pipefail
+        tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"' || true
+      args:
+        executable: /bin/bash
+      register: tailscale_post_enrollment_status
+      changed_when: false
+      retries: 10
+      delay: 2
+      until: >-
+        tailscale_post_enrollment_status.stdout | trim in
+        ["Running", "NeedsMachineAuth"]
+      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+
+    - name: Require device approval after Tailscale enrollment
+      ansible.builtin.assert:
+        that:
+          - tailscale_post_enrollment_status.stdout | trim != "NeedsMachineAuth"
+        fail_msg: |
+          ACTION REQUIRED: this machine joined the tailnet but is waiting for Tailscale device approval.
+
+          In the Tailscale admin console, approve the pending {{ tailscale_hostname }} machine,
+          then rerun this playbook.
+      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+
     - name: Start existing Tailscale identity
       ansible.builtin.command:
         argv:
