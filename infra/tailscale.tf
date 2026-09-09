@@ -62,6 +62,17 @@ resource "proxmox_virtual_environment_container" "tailscale" {
   unprivileged  = true
 }
 
+data "unifi_network" "default" {
+  name = "Default"
+}
+
+resource "unifi_client" "tailscale" {
+  mac        = "02:EE:88:40:BC:33"
+  name       = "tailscale"
+  fixed_ip   = "192.168.37.21"
+  network_id = data.unifi_network.default.id
+}
+
 resource "unifi_dns_record" "tailscale" {
   name        = "tailscale.home.arpa"
   record_type = "A"
