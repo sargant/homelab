@@ -4,6 +4,8 @@ set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
 
+BOOTSTRAP_KEY="/root/.ssh/ansible-bootstrap"
+
 if ! command -v tofu >/dev/null 2>&1; then
   apt-get update
   apt-get install -y ca-certificates curl gnupg
@@ -28,7 +30,29 @@ if ! command -v ansible-playbook >/dev/null 2>&1; then
   apt-get install -y ansible-core
 fi
 
+if ! command -v ssh-keygen >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y openssh-client
+fi
+
+install -d -m 700 /root/.ssh
+
+if [[ -e "${BOOTSTRAP_KEY}.pub" && ! -e "$BOOTSTRAP_KEY" ]]; then
+  echo "Bootstrap public key exists without its private key: ${BOOTSTRAP_KEY}.pub" >&2
+  exit 1
+fi
+
+if [[ ! -e "$BOOTSTRAP_KEY" ]]; then
+  ssh-keygen -q -t ed25519 -N '' -C 'ansible-bootstrap' -f "$BOOTSTRAP_KEY"
+elif [[ ! -e "${BOOTSTRAP_KEY}.pub" ]]; then
+  ssh-keygen -y -f "$BOOTSTRAP_KEY" >"${BOOTSTRAP_KEY}.pub"
+fi
+
+chmod 600 "$BOOTSTRAP_KEY"
+chmod 644 "${BOOTSTRAP_KEY}.pub"
+
 tofu version >/dev/null
 ansible-playbook --version >/dev/null
+ssh-keygen -l -f "${BOOTSTRAP_KEY}.pub" >/dev/null
 
-echo "Done. Management tools are installed."
+echo "Done. Management tools and Ansible bootstrap SSH key are configured."
