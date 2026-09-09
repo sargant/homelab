@@ -254,8 +254,8 @@
           - tailscale_ipv4.stdout | trim | length > 0
           - tailscale_ipv4_forward.stdout | trim == "1"
           - tailscale_ipv6_forward.stdout | trim == "1"
-          - tailscale_gro.stdout is regex('(?m)^rx-udp-gro-forwarding: on')
-          - tailscale_gro.stdout is regex('(?m)^rx-gro-list: off')
+          - "tailscale_gro.stdout is regex('(?m)^rx-udp-gro-forwarding: on')"
+          - "tailscale_gro.stdout is regex('(?m)^rx-gro-list: off')"
 
     - name: Wait for web console
       ansible.builtin.wait_for:
