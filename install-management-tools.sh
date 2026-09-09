@@ -4,6 +4,8 @@ set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
 
+MANAGEMENT_KEY="/root/.ssh/homelab-management"
+
 if ! command -v tofu >/dev/null 2>&1; then
   apt-get update
   apt-get install -y ca-certificates curl gnupg
@@ -28,7 +30,29 @@ if ! command -v ansible-playbook >/dev/null 2>&1; then
   apt-get install -y ansible-core
 fi
 
+if ! command -v ssh-keygen >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y openssh-client
+fi
+
+install -d -m 700 /root/.ssh
+
+if [[ -e "${MANAGEMENT_KEY}.pub" && ! -e "$MANAGEMENT_KEY" ]]; then
+  echo "Management public key exists without its private key: ${MANAGEMENT_KEY}.pub" >&2
+  exit 1
+fi
+
+if [[ ! -e "$MANAGEMENT_KEY" ]]; then
+  ssh-keygen -q -t ed25519 -N '' -C 'homelab-management' -f "$MANAGEMENT_KEY"
+elif [[ ! -e "${MANAGEMENT_KEY}.pub" ]]; then
+  ssh-keygen -y -f "$MANAGEMENT_KEY" >"${MANAGEMENT_KEY}.pub"
+fi
+
+chmod 600 "$MANAGEMENT_KEY"
+chmod 644 "${MANAGEMENT_KEY}.pub"
+
 tofu version >/dev/null
 ansible-playbook --version >/dev/null
+ssh-keygen -l -f "${MANAGEMENT_KEY}.pub" >/dev/null
 
-echo "Done. Management tools are installed."
+echo "Done. Management tools and SSH key are configured."
