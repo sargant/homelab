@@ -120,12 +120,28 @@
           WantedBy=multi-user.target
       register: tailscale_gro_unit
 
+    - name: Read current UDP GRO settings
+      ansible.builtin.command:
+        argv:
+          - ethtool
+          - -k
+          - "{{ tailscale_lan_interface }}"
+      register: tailscale_gro_current
+      changed_when: false
+
     - name: Enable UDP GRO service
       ansible.builtin.systemd_service:
         name: tailscale-gro.service
         daemon_reload: "{{ tailscale_gro_unit.changed }}"
         enabled: true
-        state: "{{ 'restarted' if tailscale_gro_unit.changed else 'started' }}"
+        state: >-
+          {{
+            'restarted'
+            if tailscale_gro_unit.changed
+              or 'rx-udp-gro-forwarding: on' not in tailscale_gro_current.stdout
+              or 'rx-gro-list: off' not in tailscale_gro_current.stdout
+            else 'started'
+          }}
 
     - name: Enable Tailscale daemon
       ansible.builtin.systemd_service:
@@ -142,14 +158,14 @@
       register: tailscale_status
       changed_when: false
 
-    - name: Require auth key for first-time authentication
+    - name: Require auth key when Tailscale needs login
       ansible.builtin.assert:
         that:
           - tailscale_auth_key | length > 0
         fail_msg: >-
           TAILSCALE_AUTH_KEY must be set in the Ansible controller environment
-          the first time this node joins the tailnet.
-      when: tailscale_status.stdout | trim != "Running"
+          when this node needs to join the tailnet.
+      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
 
     - name: Authenticate Tailscale
       ansible.builtin.shell: >-
@@ -161,7 +177,17 @@
       environment:
         TS_AUTH_KEY: "{{ tailscale_auth_key }}"
       no_log: true
-      when: tailscale_status.stdout | trim != "Running"
+      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+
+    - name: Start existing Tailscale identity
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - up
+          - "--hostname={{ tailscale_hostname }}"
+          - "--advertise-routes={{ tailscale_subnet_route }}"
+          - --advertise-exit-node
+      when: tailscale_status.stdout | trim == "Stopped"
 
     - name: Configure advertised routes
       ansible.builtin.command:
