@@ -1,0 +1,396 @@
+---
+- name: Configure Brother HL-1212W AirPrint bridge
+  hosts: print_server
+  gather_facts: false
+
+  vars:
+    print_server_hostname: print-server
+    print_server_host: print-server.home.arpa
+    printer_host: printer.home.arpa
+    printer_queue: Brother_HL_1212W
+    printer_name: Brother HL-1212W
+    printer_driver_model: drv:///brlaser.drv/br1200.ppd
+    printer_device_uri: "socket://{{ printer_host }}:9100"
+    printer_ppd: "/etc/cups/ppd/{{ printer_queue }}.ppd"
+    brlaser_filter: /usr/lib/cups/filter/rastertobrlaser
+    supply_wrapper: /usr/lib/cups/filter/rastertobrlaser-with-supplies
+    print_test: false
+
+    toner_oid: "1.3.6.1.4.1.1240.2.3.4.6.4.0"
+    drum_max_oid: "1.3.6.1.2.1.43.11.1.1.8.1.2"
+    drum_level_oid: "1.3.6.1.2.1.43.11.1.1.9.1.2"
+
+  pre_tasks:
+    - name: Bootstrap Python
+      ansible.builtin.raw: |
+        if [ ! -x /usr/bin/python3 ]; then
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y python3
+          echo __ANSIBLE_CHANGED__
+        fi
+      register: python_bootstrap
+      changed_when: "'__ANSIBLE_CHANGED__' in python_bootstrap.stdout"
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Check operating system and hostname
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution == "Debian"
+          - ansible_facts.distribution_major_version == "13"
+          - ansible_hostname == print_server_hostname
+        fail_msg: >-
+          Expected Debian 13 host {{ print_server_hostname }}, found
+          {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+          host {{ ansible_hostname }}.
+
+  tasks:
+    - name: Install print server packages
+      ansible.builtin.apt:
+        name:
+          - cups
+          - cups-client
+          - cups-ipp-utils
+          - avahi-daemon
+          - avahi-utils
+          - printer-driver-brlaser
+          - snmp
+          - netcat-openbsd
+          - curl
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Enable print services
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop:
+        - cups
+        - avahi-daemon
+
+    - name: Disable automatic remote printer discovery when present
+      ansible.builtin.shell: |
+        set -e
+        if systemctl list-unit-files cups-browsed.service --no-legend 2>/dev/null |
+             grep -q '^cups-browsed.service'; then
+          enabled="$(systemctl is-enabled cups-browsed.service 2>/dev/null || true)"
+          active="$(systemctl is-active cups-browsed.service 2>/dev/null || true)"
+          if [ "$enabled" != "disabled" ] || [ "$active" != "inactive" ]; then
+            systemctl disable --now cups-browsed.service
+            echo __ANSIBLE_CHANGED__
+          fi
+        fi
+      args:
+        executable: /bin/bash
+      register: cups_browsed
+      changed_when: "'__ANSIBLE_CHANGED__' in cups_browsed.stdout"
+
+    - name: Resolve print server DNS
+      ansible.builtin.command:
+        argv: [getent, hosts, "{{ print_server_host }}"]
+      changed_when: false
+
+    - name: Resolve physical printer DNS
+      ansible.builtin.command:
+        argv: [getent, hosts, "{{ printer_host }}"]
+      changed_when: false
+
+    - name: Check raw printer port
+      ansible.builtin.wait_for:
+        host: "{{ printer_host }}"
+        port: 9100
+        timeout: 3
+
+    - name: Read printer supply levels
+      ansible.builtin.shell: |
+        set -e
+        toner="$(snmpget -v2c -c public -Oqv "{{ printer_host }}" "{{ toner_oid }}")"
+        drum_max="$(snmpget -v2c -c public -Oqv "{{ printer_host }}" "{{ drum_max_oid }}")"
+        drum_level="$(snmpget -v2c -c public -Oqv "{{ printer_host }}" "{{ drum_level_oid }}")"
+
+        case "$toner:$drum_max:$drum_level" in
+          *[!0-9:]*|'':*|*::*) exit 1 ;;
+        esac
+        [ "$drum_max" -gt 0 ]
+
+        printf '%s:%s:%s\n' "$toner" "$drum_max" "$drum_level"
+      args:
+        executable: /bin/bash
+      register: supply_values
+      changed_when: false
+
+    - name: Calculate printer supply percentages
+      ansible.builtin.set_fact:
+        toner_percent: "{{ supply_values.stdout.split(':')[0] | int }}"
+        drum_percent: >-
+          {{
+            (
+              (supply_values.stdout.split(':')[2] | int) * 100 /
+              (supply_values.stdout.split(':')[1] | int)
+            ) | int
+          }}
+
+    - name: Configure CUPS for LAN and printer sharing
+      ansible.builtin.command:
+        argv:
+          - cupsctl
+          - --remote-any
+          - --share-printers
+      changed_when: false
+
+    - name: Configure CUPS server alias
+      ansible.builtin.lineinfile:
+        path: /etc/cups/cupsd.conf
+        regexp: '^\s*ServerAlias\s+'
+        line: "ServerAlias {{ print_server_host }}"
+        insertafter: EOF
+      notify: Restart CUPS
+
+    - name: Verify brlaser filter exists
+      ansible.builtin.stat:
+        path: "{{ brlaser_filter }}"
+      register: brlaser_filter_stat
+
+    - name: Require brlaser filter
+      ansible.builtin.assert:
+        that:
+          - brlaser_filter_stat.stat.exists
+          - brlaser_filter_stat.stat.executable
+        fail_msg: "Real brlaser filter not found at {{ brlaser_filter }}."
+
+    - name: Install supply-level wrapper
+      ansible.builtin.copy:
+        dest: "{{ supply_wrapper }}"
+        mode: "0755"
+        content: |
+          #!/bin/sh
+
+          PRINTER="{{ printer_host }}"
+          COMMUNITY="public"
+
+          TONER_OID="{{ toner_oid }}"
+          DRUM_MAX_OID="{{ drum_max_oid }}"
+          DRUM_LEVEL_OID="{{ drum_level_oid }}"
+
+          toner=$(
+            /usr/bin/snmpget -v2c -c "$COMMUNITY" -Oqv "$PRINTER" "$TONER_OID" 2>/dev/null
+          )
+          drum_max=$(
+            /usr/bin/snmpget -v2c -c "$COMMUNITY" -Oqv "$PRINTER" "$DRUM_MAX_OID" 2>/dev/null
+          )
+          drum_level=$(
+            /usr/bin/snmpget -v2c -c "$COMMUNITY" -Oqv "$PRINTER" "$DRUM_LEVEL_OID" 2>/dev/null
+          )
+
+          case "$toner" in
+            ''|*[!0-9]*) toner=-1 ;;
+          esac
+
+          case "$drum_max:$drum_level" in
+            *[!0-9:]*|'':*) drum=-1 ;;
+            *)
+              if [ "$drum_max" -gt 0 ]; then
+                drum=$((drum_level * 100 / drum_max))
+              else
+                drum=-1
+              fi
+              ;;
+          esac
+
+          echo 'ATTR: marker-names="Black Toner Cartridge","Drum Unit"' >&2
+          echo 'ATTR: marker-types=toner,opc' >&2
+          echo 'ATTR: marker-colors=#000000,none' >&2
+          echo 'ATTR: marker-low-levels=10,10' >&2
+          echo 'ATTR: marker-high-levels=100,100' >&2
+          echo "ATTR: marker-levels=${toner},${drum}" >&2
+
+          exec "{{ brlaser_filter }}" "$@"
+      notify: Restart CUPS
+
+    - name: Configure printer queue and PPD
+      ansible.builtin.shell: |
+        set -euo pipefail
+        changed=0
+
+        stale="{{ printer_queue }}_print_server"
+        if lpstat -p "$stale" >/dev/null 2>&1; then
+          lpadmin -x "$stale"
+          changed=1
+        fi
+
+        if ! lpstat -p "{{ printer_queue }}" >/dev/null 2>&1; then
+          lpadmin \
+            -p "{{ printer_queue }}" \
+            -E \
+            -D "{{ printer_name }}" \
+            -L "print-server" \
+            -v "{{ printer_device_uri }}" \
+            -m "{{ printer_driver_model }}"
+          changed=1
+        fi
+
+        current_uri="$(lpstat -v "{{ printer_queue }}" | sed 's/.*: //')"
+        if [ "$current_uri" != "{{ printer_device_uri }}" ]; then
+          lpadmin -p "{{ printer_queue }}" -v "{{ printer_device_uri }}"
+          changed=1
+        fi
+
+        lpadmin -p "{{ printer_queue }}" -D "{{ printer_name }}" -L "print-server"
+        lpadmin -p "{{ printer_queue }}" -o cupsSNMPSupplies=false
+        lpadmin -d "{{ printer_queue }}"
+        cupsaccept "{{ printer_queue }}"
+        cupsenable "{{ printer_queue }}"
+
+        ppd="{{ printer_ppd }}"
+        [ -f "$ppd" ]
+
+        if ! grep -q 'rastertobrlaser-with-supplies' "$ppd"; then
+          grep -q 'rastertobrlaser"' "$ppd"
+          sed -i \
+            's#\*cupsFilter: "application/vnd.cups-raster 33 rastertobrlaser"#*cupsFilter: "application/vnd.cups-raster 33 rastertobrlaser-with-supplies"#' \
+            "$ppd"
+          changed=1
+        fi
+
+        if grep -q '^\*cupsSNMPSupplies:' "$ppd"; then
+          if ! grep -q '^\*cupsSNMPSupplies: False$' "$ppd"; then
+            sed -i 's/^\*cupsSNMPSupplies:.*/\*cupsSNMPSupplies: False/' "$ppd"
+            changed=1
+          fi
+        else
+          printf '*cupsSNMPSupplies: False\n' >> "$ppd"
+          changed=1
+        fi
+
+        if ! grep -q '^\*NickName: "Brother HL-1200 series via CUPS"$' "$ppd"; then
+          sed -i \
+            's#^\*NickName: ".*"#*NickName: "Brother HL-1200 series via CUPS"#' \
+            "$ppd"
+          changed=1
+        fi
+
+        [ "$changed" -eq 0 ] || echo __ANSIBLE_CHANGED__
+      args:
+        executable: /bin/bash
+      register: printer_configuration
+      changed_when: "'__ANSIBLE_CHANGED__' in printer_configuration.stdout"
+      notify: Restart CUPS
+
+    - name: Apply CUPS changes before verification
+      ansible.builtin.meta: flush_handlers
+
+    - name: Return CUPS logging to normal
+      ansible.builtin.command:
+        argv:
+          - cupsctl
+          - --no-debug-logging
+      changed_when: false
+
+    - name: Verify print server without printing
+      ansible.builtin.shell: |
+        set -euo pipefail
+
+        systemctl is-active --quiet cups
+        systemctl is-active --quiet avahi-daemon
+
+        device_uri="$(lpstat -v "{{ printer_queue }}" | sed 's/.*: //')"
+        [ "$device_uri" = "{{ printer_device_uri }}" ]
+
+        grep -q 'rastertobrlaser-with-supplies' "{{ printer_ppd }}"
+        grep -q '^\*cupsSNMPSupplies: False$' "{{ printer_ppd }}"
+        grep -q '^\*NickName: "Brother HL-1200 series via CUPS"$' "{{ printer_ppd }}"
+
+        wrapper_output="$(
+          {
+            printf '' |
+              "{{ supply_wrapper }}" 1 root supply-check 1 '' 2>&1 ||
+              true
+          } | head -n 6
+        )"
+
+        expected='ATTR: marker-levels={{ toner_percent }},{{ drum_percent }}'
+        grep -Fq "$expected" <<<"$wrapper_output"
+
+        printf 'Backend: %s\n' "$device_uri"
+        printf 'Toner: {{ toner_percent }}%%\n'
+        printf 'Drum: {{ drum_percent }}%%\n'
+      args:
+        executable: /bin/bash
+      register: verification
+      changed_when: false
+
+    - name: Pause for AirPrint advertisement
+      ansible.builtin.pause:
+        seconds: 2
+
+    - name: Check AirPrint advertisements
+      ansible.builtin.shell: |
+        set -o pipefail
+        service="{{ printer_name }} @ {{ print_server_hostname }}"
+
+        if avahi-browse -rt _ipp._tcp 2>/dev/null | grep -Fq "$service"; then
+          echo "IPP/AirPrint advertisement: found"
+        else
+          echo "IPP/AirPrint advertisement: not found immediately"
+        fi
+
+        if avahi-browse -rt _universal._sub._ipp._tcp 2>/dev/null | grep -Fq "$service"; then
+          echo "Universal AirPrint subtype: found"
+        else
+          echo "Universal AirPrint subtype: not found immediately"
+        fi
+      args:
+        executable: /bin/bash
+      register: airprint_status
+      changed_when: false
+
+    - name: Send optional physical test print
+      ansible.builtin.shell: |
+        printf 'AirPrint bridge test\n' | lp -d "{{ printer_queue }}"
+      args:
+        executable: /bin/bash
+      when: print_test | bool
+
+    - name: Wait for optional test print pipeline
+      ansible.builtin.pause:
+        seconds: 3
+      when: print_test | bool
+
+    - name: Read marker attributes after optional test print
+      ansible.builtin.shell: |
+        set -o pipefail
+        ipptool -tv "ipp://localhost:631/printers/{{ printer_queue }}" \
+          get-printer-attributes.test 2>/dev/null |
+          grep -i marker || true
+      args:
+        executable: /bin/bash
+      register: marker_attributes
+      changed_when: false
+      when: print_test | bool
+
+    - name: Report print server status
+      ansible.builtin.debug:
+        msg:
+          - "{{ verification.stdout_lines }}"
+          - "{{ airprint_status.stdout_lines }}"
+          - >-
+            Physical test page:
+            {{ 'printed' if print_test | bool else 'not requested' }}
+          - "Caddy/reverse-proxy configuration is not managed by this playbook."
+          - >-
+            To send the optional real test print, rerun with
+            -e print_test=true.
+
+    - name: Report marker attributes after optional test print
+      ansible.builtin.debug:
+        var: marker_attributes.stdout_lines
+      when: print_test | bool
+
+  handlers:
+    - name: Restart CUPS
+      ansible.builtin.systemd_service:
+        name: cups
+        state: restarted
