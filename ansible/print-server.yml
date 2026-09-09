@@ -20,29 +20,15 @@
     drum_level_oid: "1.3.6.1.2.1.43.11.1.1.9.1.2"
 
   pre_tasks:
-    - name: Bootstrap Python
-      ansible.builtin.raw: |
-        if [ ! -x /usr/bin/python3 ]; then
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y python3
-          echo __ANSIBLE_CHANGED__
-        fi
-      register: python_bootstrap
-      changed_when: "'__ANSIBLE_CHANGED__' in python_bootstrap.stdout"
+    - name: Bootstrap Debian
+      ansible.builtin.import_tasks: tasks/bootstrap-debian.yml
 
-    - name: Gather facts
-      ansible.builtin.setup:
-
-    - name: Check operating system and hostname
+    - name: Check hostname
       ansible.builtin.assert:
         that:
-          - ansible_facts.distribution == "Debian"
-          - ansible_facts.distribution_major_version == "13"
           - ansible_hostname == print_server_hostname
         fail_msg: >-
-          Expected Debian 13 host {{ print_server_hostname }}, found
-          {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
-          host {{ ansible_hostname }}.
+          Expected host {{ print_server_hostname }}, found {{ ansible_hostname }}.
 
   tasks:
     - name: Install print server packages
