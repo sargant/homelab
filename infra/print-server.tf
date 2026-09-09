@@ -7,7 +7,7 @@ resource "unifi_client" "print_server" {
 
 resource "proxmox_virtual_environment_container" "print_server" {
   node_name = "vm-host"
-  vm_id     = 101
+  vm_id     = 1041
 
   cpu {
     architecture = "amd64"
