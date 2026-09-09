@@ -1,7 +1,3 @@
-data "unifi_network" "default" {
-  name = "Default"
-}
-
 resource "unifi_client" "tailscale" {
   mac        = "02:EE:88:40:BC:33"
   name       = "tailscale"
@@ -14,7 +10,6 @@ resource "unifi_dns_record" "tailscale" {
   record_type = "A"
   value       = "192.168.37.21"
 }
-
 
 resource "proxmox_virtual_environment_container" "tailscale" {
   node_name = "vm-host"
