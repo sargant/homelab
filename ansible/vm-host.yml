@@ -1,9 +1,27 @@
 ---
-- name: Configure vm-host shell
-  hosts: localhost
-  connection: local
-  gather_facts: false
+- name: Initialize Proxmox management host
+  hosts: vm_host
+  gather_facts: true
+
+  pre_tasks:
+    - name: Check operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution == "Debian"
+          - ansible_facts.distribution_major_version == "13"
+        fail_msg: >-
+          Expected Debian 13, found
+          {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}.
+
+    - name: Check Proxmox VE
+      ansible.builtin.command:
+        argv:
+          - pveversion
+      changed_when: false
 
   tasks:
+    - name: Install management tools
+      ansible.builtin.import_tasks: tasks/install-management-tools.yml
+
     - name: Configure interactive shell
       ansible.builtin.import_tasks: tasks/configure-shell.yml
