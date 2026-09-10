@@ -308,8 +308,12 @@
         set -euo pipefail
         service="{{ printer_name }} @ {{ print_server_hostname }}"
 
-        ipp_services="$(avahi-browse -rt _ipp._tcp 2>/dev/null)"
-        universal_services="$(avahi-browse -rt _universal._sub._ipp._tcp 2>/dev/null)"
+        ipp_services="$(
+          timeout 2s avahi-browse -t _ipp._tcp 2>/dev/null || true
+        )"
+        universal_services="$(
+          timeout 2s avahi-browse -t _universal._sub._ipp._tcp 2>/dev/null || true
+        )"
 
         grep -Fq "$service" <<<"$ipp_services"
         grep -Fq "$service" <<<"$universal_services"
