@@ -97,7 +97,7 @@
         drum_level="$(snmpget -v2c -c public -Oqv "{{ printer_host }}" "{{ drum_level_oid }}")"
 
         case "$toner:$drum_max:$drum_level" in
-          *[!0-9:]*|'':*|*::*) exit 1 ;;
+          *[!0-9:]*|:*|*::*|*:) exit 1 ;;
         esac
         [ "$drum_max" -gt 0 ]
 
@@ -175,7 +175,7 @@
           esac
 
           case "$drum_max:$drum_level" in
-            *[!0-9:]*|'':*) drum=-1 ;;
+            *[!0-9:]*|:*|*:) drum=-1 ;;
             *)
               if [ "$drum_max" -gt 0 ]; then
                 drum=$((drum_level * 100 / drum_max))
@@ -307,30 +307,23 @@
       register: verification
       changed_when: false
 
-    - name: Pause for AirPrint advertisement
-      ansible.builtin.pause:
-        seconds: 2
-
-    - name: Check AirPrint advertisements
+    - name: Wait for AirPrint advertisements
       ansible.builtin.shell: |
-        set -o pipefail
+        set -euo pipefail
         service="{{ printer_name }} @ {{ print_server_hostname }}"
 
-        if avahi-browse -rt _ipp._tcp 2>/dev/null | grep -Fq "$service"; then
-          echo "IPP/AirPrint advertisement: found"
-        else
-          echo "IPP/AirPrint advertisement: not found immediately"
-        fi
+        avahi-browse -rt _ipp._tcp 2>/dev/null | grep -Fq "$service"
+        avahi-browse -rt _universal._sub._ipp._tcp 2>/dev/null | grep -Fq "$service"
 
-        if avahi-browse -rt _universal._sub._ipp._tcp 2>/dev/null | grep -Fq "$service"; then
-          echo "Universal AirPrint subtype: found"
-        else
-          echo "Universal AirPrint subtype: not found immediately"
-        fi
+        echo "IPP/AirPrint advertisement: found"
+        echo "Universal AirPrint subtype: found"
       args:
         executable: /bin/bash
       register: airprint_status
       changed_when: false
+      retries: 10
+      delay: 2
+      until: airprint_status.rc == 0
 
     - name: Report print server status
       ansible.builtin.debug:
