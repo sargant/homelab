@@ -1,0 +1,9 @@
+---
+- name: Configure vm-host shell
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Configure interactive shell
+      ansible.builtin.import_tasks: tasks/configure-shell.yml

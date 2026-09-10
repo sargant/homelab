@@ -1,6 +1,6 @@
 resource "unifi_client" "print_server" {
   mac              = "02:7A:41:C3:8D:52"
-  name             = "print-server"
+  name             = "Print server"
   fixed_ip         = "192.168.37.41"
   local_dns_record = "print-server.home.arpa"
 }

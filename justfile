@@ -1,4 +1,5 @@
 set dotenv-load
+set dotenv-required
 
 # Infrastructure provisioning and lifecycle.
 mod infra
