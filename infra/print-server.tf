@@ -5,6 +5,16 @@ resource "unifi_client" "print_server" {
   local_dns_record = "print-server.home.arpa"
 }
 
+resource "time_sleep" "print_server_dhcp" {
+  create_duration = "10s"
+
+  triggers = {
+    mac              = unifi_client.print_server.mac
+    fixed_ip         = unifi_client.print_server.fixed_ip
+    local_dns_record = unifi_client.print_server.local_dns_record
+  }
+}
+
 resource "proxmox_virtual_environment_container" "print_server" {
   node_name = "vm-host"
   vm_id     = 1041
@@ -64,5 +74,5 @@ resource "proxmox_virtual_environment_container" "print_server" {
   started       = true
   unprivileged  = true
 
-  depends_on = [unifi_client.print_server]
+  depends_on = [time_sleep.print_server_dhcp]
 }
