@@ -1,16 +1,16 @@
 set dotenv-load
-set dotenv-required
 
 mod infra
 mod update 'ansible'
 
+# Initialize the Proxmox management host with Ansible.
 init:
-  pushd ansible
-  ansible-playbook -i inventory.yml vm-host.yml
-  popd
+  ansible-playbook -i ansible/inventory.yml ansible/vm-host.yml
 
+# Preview infrastructure changes.
 plan:
   just infra plan
 
+# Apply infrastructure changes.
 apply:
   just infra apply
