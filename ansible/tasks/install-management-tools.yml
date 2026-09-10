@@ -81,10 +81,10 @@
 - name: Reject incomplete Ansible keypair
   ansible.builtin.assert:
     that:
-      - ansible_private_key.stat.exists or not ansible_public_key.stat.exists
+      - ansible_private_key.stat.exists == ansible_public_key.stat.exists
     fail_msg: >-
-      Ansible public key exists without its private key:
-      /root/.ssh/ansible.pub
+      Expected both /root/.ssh/ansible and /root/.ssh/ansible.pub,
+      or neither. Refusing to repair an incomplete keypair.
 
 - name: Create Ansible SSH keypair
   ansible.builtin.command:
@@ -100,29 +100,6 @@
       - -f
       - /root/.ssh/ansible
   when: not ansible_private_key.stat.exists
-
-- name: Check generated Ansible public key
-  ansible.builtin.stat:
-    path: /root/.ssh/ansible.pub
-  register: generated_ansible_public_key
-
-- name: Recover Ansible public key from private key
-  ansible.builtin.command:
-    argv:
-      - ssh-keygen
-      - -y
-      - -f
-      - /root/.ssh/ansible
-  register: recovered_ansible_public_key
-  changed_when: false
-  when: not generated_ansible_public_key.stat.exists
-
-- name: Write recovered Ansible public key
-  ansible.builtin.copy:
-    dest: /root/.ssh/ansible.pub
-    content: "{{ recovered_ansible_public_key.stdout }}\n"
-    mode: "0644"
-  when: not generated_ansible_public_key.stat.exists
 
 - name: Set Ansible private key permissions
   ansible.builtin.file:
