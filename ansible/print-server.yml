@@ -44,8 +44,17 @@
           - netcat-openbsd
           - curl
         state: present
+        install_recommends: false
         update_cache: true
         cache_valid_time: 3600
+
+    - name: Remove unused CUPS recommended services
+      ansible.builtin.apt:
+        name:
+          - colord
+          - cups-browsed
+          - ipp-usb
+        state: absent
 
     - name: Enable print services
       ansible.builtin.systemd_service:
@@ -55,23 +64,6 @@
       loop:
         - cups
         - avahi-daemon
-
-    - name: Disable automatic remote printer discovery when present
-      ansible.builtin.shell: |
-        set -e
-        if systemctl list-unit-files cups-browsed.service --no-legend 2>/dev/null |
-             grep -q '^cups-browsed.service'; then
-          enabled="$(systemctl is-enabled cups-browsed.service 2>/dev/null || true)"
-          active="$(systemctl is-active cups-browsed.service 2>/dev/null || true)"
-          if [ "$enabled" != "disabled" ] || [ "$active" != "inactive" ]; then
-            systemctl disable --now cups-browsed.service
-            echo __ANSIBLE_CHANGED__
-          fi
-        fi
-      args:
-        executable: /bin/bash
-      register: cups_browsed
-      changed_when: "'__ANSIBLE_CHANGED__' in cups_browsed.stdout"
 
     - name: Resolve print server DNS
       ansible.builtin.command:
