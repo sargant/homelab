@@ -5,6 +5,16 @@ resource "unifi_client" "tailscale" {
   local_dns_record = "tailscale.home.arpa"
 }
 
+resource "time_sleep" "tailscale_dhcp" {
+  create_duration = "10s"
+
+  triggers = {
+    mac              = unifi_client.tailscale.mac
+    fixed_ip         = unifi_client.tailscale.fixed_ip
+    local_dns_record = unifi_client.tailscale.local_dns_record
+  }
+}
+
 resource "proxmox_virtual_environment_container" "tailscale" {
   node_name = "vm-host"
   vm_id     = 1021
@@ -68,5 +78,5 @@ resource "proxmox_virtual_environment_container" "tailscale" {
   started       = true
   unprivileged  = true
 
-  depends_on = [unifi_client.tailscale]
+  depends_on = [time_sleep.tailscale_dhcp]
 }
