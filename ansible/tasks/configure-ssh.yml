@@ -28,7 +28,7 @@
     owner: root
     group: root
     mode: "0600"
-    marker: "# {mark} GITHUB AUTHORIZED KEYS ({{ github_ssh_user }})"
+    marker: "# {mark} ANSIBLE MANAGED GITHUB SSH KEYS"
     block: "{{ github_ssh_keys.content | trim }}"
 
 - name: Enforce SSH key-only authentication
