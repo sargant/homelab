@@ -1,6 +1,6 @@
 resource "unifi_client" "tailscale" {
   mac              = "02:EE:88:40:BC:33"
-  name             = "tailscale"
+  name             = "Tailscale Gateway"
   fixed_ip         = "192.168.37.21"
   local_dns_record = "tailscale.home.arpa"
 }
