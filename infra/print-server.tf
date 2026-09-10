@@ -1,24 +1,24 @@
-resource "unifi_client" "tailscale" {
-  mac              = "02:EE:88:40:BC:33"
-  name             = "Tailscale Gateway"
-  fixed_ip         = "192.168.37.21"
-  local_dns_record = "tailscale.home.arpa"
+resource "unifi_client" "print_server" {
+  mac              = "02:7A:41:C3:8D:52"
+  name             = "print-server"
+  fixed_ip         = "192.168.37.41"
+  local_dns_record = "print-server.home.arpa"
 }
 
-resource "time_sleep" "tailscale_dhcp" {
+resource "time_sleep" "print_server_dhcp" {
   create_duration = "10s"
 
   triggers = {
-    client_id        = unifi_client.tailscale.id
-    mac              = unifi_client.tailscale.mac
-    fixed_ip         = unifi_client.tailscale.fixed_ip
-    local_dns_record = unifi_client.tailscale.local_dns_record
+    client_id        = unifi_client.print_server.id
+    mac              = unifi_client.print_server.mac
+    fixed_ip         = unifi_client.print_server.fixed_ip
+    local_dns_record = unifi_client.print_server.local_dns_record
   }
 }
 
-resource "proxmox_virtual_environment_container" "tailscale" {
+resource "proxmox_virtual_environment_container" "print_server" {
   node_name = "vm-host"
-  vm_id     = 1021
+  vm_id     = 1041
 
   cpu {
     architecture = "amd64"
@@ -39,12 +39,8 @@ resource "proxmox_virtual_environment_container" "tailscale" {
     nesting = true
   }
 
-  device_passthrough {
-    path = "/dev/net/tun"
-  }
-
   initialization {
-    hostname = "tailscale"
+    hostname = "print-server"
 
     user_account {
       keys = [
@@ -58,7 +54,7 @@ resource "proxmox_virtual_environment_container" "tailscale" {
       }
 
       ipv6 {
-        address = "auto"
+        address = "dhcp"
       }
     }
   }
@@ -67,7 +63,7 @@ resource "proxmox_virtual_environment_container" "tailscale" {
     name        = "eth0"
     bridge      = "vmbr0"
     firewall    = true
-    mac_address = "02:EE:88:40:BC:33"
+    mac_address = "02:7A:41:C3:8D:52"
   }
 
   operating_system {
@@ -79,5 +75,5 @@ resource "proxmox_virtual_environment_container" "tailscale" {
   started       = true
   unprivileged  = true
 
-  depends_on = [time_sleep.tailscale_dhcp]
+  depends_on = [time_sleep.print_server_dhcp]
 }

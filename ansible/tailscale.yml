@@ -10,27 +10,8 @@
     tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_AUTH_KEY') }}"
 
   pre_tasks:
-    - name: Bootstrap Python
-      ansible.builtin.raw: |
-        if [ ! -x /usr/bin/python3 ]; then
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y python3
-          echo __ANSIBLE_CHANGED__
-        fi
-      register: python_bootstrap
-      changed_when: "'__ANSIBLE_CHANGED__' in python_bootstrap.stdout"
-
-    - name: Gather facts
-      ansible.builtin.setup:
-
-    - name: Check operating system
-      ansible.builtin.assert:
-        that:
-          - ansible_facts.distribution == "Debian"
-          - ansible_facts.distribution_major_version == "13"
-        fail_msg: >-
-          Expected Debian 13, found
-          {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}.
+    - name: Bootstrap Debian
+      ansible.builtin.import_tasks: tasks/bootstrap-debian.yml
 
     - name: Check TUN device
       ansible.builtin.stat:
