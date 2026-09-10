@@ -1,13 +1,19 @@
 ---
 - name: Enforce SSH key-only authentication
   ansible.builtin.copy:
-    dest: /etc/ssh/sshd_config.d/99-key-only.conf
+    dest: /etc/ssh/sshd_config.d/00-key-only.conf
     mode: "0644"
     content: |
       PasswordAuthentication no
       KbdInteractiveAuthentication no
       PermitRootLogin prohibit-password
   register: ssh_key_only_config
+
+- name: Remove legacy late SSH policy drop-in
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d/99-key-only.conf
+    state: absent
+  register: ssh_legacy_key_only_config
 
 - name: Validate SSH configuration
   ansible.builtin.command:
@@ -20,7 +26,7 @@
   ansible.builtin.systemd_service:
     name: ssh
     state: restarted
-  when: ssh_key_only_config.changed
+  when: ssh_key_only_config.changed or ssh_legacy_key_only_config.changed
 
 - name: Read effective SSH authentication policy
   ansible.builtin.command:
