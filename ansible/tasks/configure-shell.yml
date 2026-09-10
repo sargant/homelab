@@ -1,4 +1,11 @@
 ---
+- name: Install interactive shell support
+  ansible.builtin.apt:
+    name: bash-completion
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
 - name: Configure homelab interactive shell
   ansible.builtin.blockinfile:
     path: /etc/bash.bashrc
@@ -15,13 +22,27 @@
       }
 
       if [[ $- == *i* ]]; then
+        shopt -s histappend
+        shopt -s checkwinsize
+
+        HISTCONTROL=ignoreboth:erasedups
+        HISTSIZE=5000
+        HISTFILESIZE=10000
+
         if command -v dircolors >/dev/null 2>&1; then
           eval "$(dircolors -b)"
         fi
 
+        if [[ -r /usr/share/bash-completion/bash_completion ]]; then
+          . /usr/share/bash-completion/bash_completion
+        fi
+
         alias ls='ls --color=auto'
+        alias ll='ls -alF --color=auto'
+        alias la='ls -A --color=auto'
         alias grep='grep --color=auto'
         alias diff='diff --color=auto'
+        alias ip='ip -color=auto'
 
         if [[ -n ${PROMPT_COMMAND:-} ]]; then
           PROMPT_COMMAND="_homelab_prompt;${PROMPT_COMMAND}"
