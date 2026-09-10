@@ -1,0 +1,7 @@
+# Configure the print server.
+print-server:
+    ansible-playbook -i inventory.yml print-server.yml
+
+# Configure the Tailscale router.
+tailscale:
+    ansible-playbook -i inventory.yml tailscale.yml

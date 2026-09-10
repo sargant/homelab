@@ -30,6 +30,11 @@ if ! command -v ansible-playbook >/dev/null 2>&1; then
   apt-get install -y ansible-core
 fi
 
+if ! command -v just >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y just
+fi
+
 if ! command -v ssh-keygen >/dev/null 2>&1; then
   apt-get update
   apt-get install -y openssh-client
@@ -53,6 +58,7 @@ chmod 644 "${ANSIBLE_KEY}.pub"
 
 tofu version >/dev/null
 ansible-playbook --version >/dev/null
+just --version >/dev/null
 ssh-keygen -l -f "${ANSIBLE_KEY}.pub" >/dev/null
 
 echo "Done. Management tools and Ansible SSH key are configured."
