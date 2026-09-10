@@ -8,7 +8,8 @@ all:
   hosts:
     vm_host:
       ansible_host: localhost
-      
+      ansible_connection: local
+
     tailscale:
       ansible_host: tailscale.home.arpa
 
