@@ -1,4 +1,5 @@
 set dotenv-load
+set dotenv-required
 
 mod infra
 mod update 'ansible'
