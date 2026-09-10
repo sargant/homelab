@@ -1,8 +1,8 @@
 resource "unifi_client" "paperless" {
-  mac              = "02:9D:44:7C:A1:B6"
+  mac              = local.hosts.paperless.mac
   name             = "Paperless"
-  fixed_ip         = "192.168.37.44"
-  local_dns_record = "paperless.home.arpa"
+  fixed_ip         = local.hosts.paperless.ip
+  local_dns_record = local.hosts.paperless.dns
 }
 
 resource "time_sleep" "paperless_dhcp" {
@@ -102,7 +102,7 @@ resource "proxmox_virtual_environment_vm" "paperless" {
   network_device {
     bridge      = "vmbr0"
     firewall    = true
-    mac_address = "02:9D:44:7C:A1:B6"
+    mac_address = local.hosts.paperless.mac
   }
 
   operating_system {
