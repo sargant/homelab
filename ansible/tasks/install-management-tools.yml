@@ -68,25 +68,25 @@
     state: directory
     mode: "0700"
 
-- name: Check Ansible private key
+- name: Check VM management private key
   ansible.builtin.stat:
-    path: /root/.ssh/ansible
-  register: ansible_private_key
+    path: /root/.ssh/vm-management
+  register: vm_management_private_key
 
-- name: Check Ansible public key
+- name: Check VM management public key
   ansible.builtin.stat:
-    path: /root/.ssh/ansible.pub
-  register: ansible_public_key
+    path: /root/.ssh/vm-management.pub
+  register: vm_management_public_key
 
-- name: Reject incomplete Ansible keypair
+- name: Reject incomplete VM management keypair
   ansible.builtin.assert:
     that:
-      - ansible_private_key.stat.exists == ansible_public_key.stat.exists
+      - vm_management_private_key.stat.exists == vm_management_public_key.stat.exists
     fail_msg: >-
-      Expected both /root/.ssh/ansible and /root/.ssh/ansible.pub,
+      Expected both /root/.ssh/vm-management and /root/.ssh/vm-management.pub,
       or neither. Refusing to repair an incomplete keypair.
 
-- name: Create Ansible SSH keypair
+- name: Create VM management SSH keypair
   ansible.builtin.command:
     argv:
       - ssh-keygen
@@ -96,25 +96,25 @@
       - -N
       - ""
       - -C
-      - ansible
+      - vm-management
       - -f
-      - /root/.ssh/ansible
-  when: not ansible_private_key.stat.exists
+      - /root/.ssh/vm-management
+  when: not vm_management_private_key.stat.exists
 
-- name: Set Ansible private key permissions
+- name: Set VM management private key permissions
   ansible.builtin.file:
-    path: /root/.ssh/ansible
+    path: /root/.ssh/vm-management
     mode: "0600"
 
-- name: Set Ansible public key permissions
+- name: Set VM management public key permissions
   ansible.builtin.file:
-    path: /root/.ssh/ansible.pub
+    path: /root/.ssh/vm-management.pub
     mode: "0644"
 
-- name: Authorize Ansible key for local root SSH
+- name: Authorize VM management key for local root SSH
   ansible.builtin.lineinfile:
     path: /root/.ssh/authorized_keys
-    line: "{{ lookup('ansible.builtin.file', '/root/.ssh/ansible.pub') }}"
+    line: "{{ lookup('ansible.builtin.file', '/root/.ssh/vm-management.pub') }}"
     create: true
     mode: "0600"
 
@@ -132,11 +132,11 @@
       - --version
   changed_when: false
 
-- name: Verify Ansible SSH key
+- name: Verify VM management SSH key
   ansible.builtin.command:
     argv:
       - ssh-keygen
       - -l
       - -f
-      - /root/.ssh/ansible.pub
+      - /root/.ssh/vm-management.pub
   changed_when: false
