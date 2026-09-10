@@ -1,3 +1,34 @@
+resource "proxmox_virtual_environment_file" "paperless_cloud_init" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "vm-host"
+
+  source_raw {
+    data = <<-EOF
+      #cloud-config
+      hostname: paperless
+      disable_root: false
+      ssh_pwauth: false
+
+      users:
+        - name: root
+          lock_passwd: true
+          shell: /bin/bash
+          ssh_authorized_keys:
+            - ${trimspace(file("/root/.ssh/ansible.pub"))}
+
+      package_update: true
+      packages:
+        - qemu-guest-agent
+
+      runcmd:
+        - systemctl enable --now qemu-guest-agent
+    EOF
+
+    file_name = "paperless-cloud-init.yaml"
+  }
+}
+
 resource "proxmox_virtual_environment_vm" "paperless" {
   name        = "paperless"
   description = "Paperless application host"
@@ -10,6 +41,10 @@ resource "proxmox_virtual_environment_vm" "paperless" {
   stop_on_destroy = true
   scsi_hardware   = "virtio-scsi-single"
   keyboard_layout = "en-gb"
+
+  agent {
+    enabled = true
+  }
 
   cpu {
     cores = 2
@@ -31,19 +66,17 @@ resource "proxmox_virtual_environment_vm" "paperless" {
   }
 
   initialization {
-    datastore_id = "local-lvm"
-    upgrade      = false
-
-    user_account {
-      username = "debian"
-      keys = [
-        trimspace(file("/root/.ssh/ansible.pub"))
-      ]
-    }
+    datastore_id      = "local-lvm"
+    upgrade           = false
+    user_data_file_id = proxmox_virtual_environment_file.paperless_cloud_init.id
 
     ip_config {
       ipv4 {
         address = "dhcp"
+      }
+
+      ipv6 {
+        address = "auto"
       }
     }
   }
