@@ -35,5 +35,5 @@
     that:
       - "ssh_effective_config.stdout is regex('(?m)^passwordauthentication no$')"
       - "ssh_effective_config.stdout is regex('(?m)^kbdinteractiveauthentication no$')"
-      - "ssh_effective_config.stdout is regex('(?m)^permitrootlogin prohibit-password$')"
+      - "ssh_effective_config.stdout is regex('(?m)^permitrootlogin (prohibit-password|without-password)$')"
     fail_msg: SSH is not enforcing the expected key-only authentication policy.
