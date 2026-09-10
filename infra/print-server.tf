@@ -1,8 +1,8 @@
 resource "unifi_client" "print_server" {
-  mac              = "02:7A:41:C3:8D:52"
+  mac              = local.hosts.print_server.mac
   name             = "Print server"
-  fixed_ip         = "192.168.37.41"
-  local_dns_record = "print-server.home.arpa"
+  fixed_ip         = local.hosts.print_server.ip
+  local_dns_record = local.hosts.print_server.dns
 }
 
 resource "time_sleep" "print_server_dhcp" {
@@ -63,7 +63,7 @@ resource "proxmox_virtual_environment_container" "print_server" {
     name        = "eth0"
     bridge      = "vmbr0"
     firewall    = true
-    mac_address = "02:7A:41:C3:8D:52"
+    mac_address = local.hosts.print_server.mac
   }
 
   operating_system {
