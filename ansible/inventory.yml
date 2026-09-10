@@ -6,6 +6,9 @@ all:
     github_ssh_user: sargant
 
   hosts:
+    vm_host:
+      ansible_host: localhost
+      
     tailscale:
       ansible_host: tailscale.home.arpa
 

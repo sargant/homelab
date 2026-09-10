@@ -1,8 +1,16 @@
 set dotenv-load
 set dotenv-required
 
-# Infrastructure provisioning and lifecycle.
 mod infra
-
-# Configure managed hosts with Ansible.
 mod update 'ansible'
+
+init:
+  pushd ansible
+  ansible-playbook -i inventory.yml vm-host.yml
+  popd
+
+plan:
+  just infra plan
+
+apply:
+  just infra apply
