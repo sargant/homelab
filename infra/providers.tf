@@ -21,6 +21,12 @@ provider "proxmox" {
   endpoint = "https://localhost:8006/"
   username = "root@pam"
   insecure = true
+
+  ssh {
+    username    = "root"
+    agent       = false
+    private_key = file("/root/.ssh/ansible")
+  }
 }
 
 provider "unifi" {}
