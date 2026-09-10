@@ -3,9 +3,6 @@ resource "unifi_client" "tailscale" {
   name             = "Tailscale Gateway"
   fixed_ip         = "192.168.37.21"
   local_dns_record = "tailscale.home.arpa"
-
-  allow_existing         = true
-  skip_forget_on_destroy = true
 }
 
 resource "time_sleep" "tailscale_dhcp" {
