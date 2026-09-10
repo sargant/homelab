@@ -3,6 +3,9 @@ resource "unifi_client" "print_server" {
   name             = "print-server"
   fixed_ip         = "192.168.37.41"
   local_dns_record = "print-server.home.arpa"
+
+  allow_existing         = true
+  skip_forget_on_destroy = true
 }
 
 resource "time_sleep" "print_server_dhcp" {
