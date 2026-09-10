@@ -9,6 +9,7 @@ resource "time_sleep" "print_server_dhcp" {
   create_duration = "10s"
 
   triggers = {
+    client_id        = unifi_client.print_server.id
     mac              = unifi_client.print_server.mac
     fixed_ip         = unifi_client.print_server.fixed_ip
     local_dns_record = unifi_client.print_server.local_dns_record
