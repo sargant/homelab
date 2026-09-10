@@ -1,0 +1,166 @@
+---
+- name: Install management tool prerequisites
+  ansible.builtin.apt:
+    name:
+      - ansible-core
+      - ca-certificates
+      - curl
+      - gnupg
+      - just
+      - openssh-client
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create apt keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Install OpenTofu signing key
+  ansible.builtin.get_url:
+    url: https://get.opentofu.org/opentofu.gpg
+    dest: /etc/apt/keyrings/opentofu.gpg
+    mode: "0644"
+
+- name: Download OpenTofu repository signing key
+  ansible.builtin.get_url:
+    url: https://packages.opentofu.org/opentofu/tofu/gpgkey
+    dest: /etc/apt/keyrings/opentofu-repo.asc
+    mode: "0644"
+  register: opentofu_repo_key
+
+- name: Check OpenTofu repository keyring
+  ansible.builtin.stat:
+    path: /etc/apt/keyrings/opentofu-repo.gpg
+  register: opentofu_repo_keyring
+
+- name: Build OpenTofu repository keyring
+  ansible.builtin.command:
+    argv:
+      - gpg
+      - --batch
+      - --yes
+      - --dearmor
+      - --output
+      - /etc/apt/keyrings/opentofu-repo.gpg
+      - /etc/apt/keyrings/opentofu-repo.asc
+  when: opentofu_repo_key.changed or not opentofu_repo_keyring.stat.exists
+
+- name: Configure OpenTofu apt repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/opentofu.list
+    mode: "0644"
+    content: |
+      deb [signed-by=/etc/apt/keyrings/opentofu.gpg,/etc/apt/keyrings/opentofu-repo.gpg] https://packages.opentofu.org/opentofu/tofu/any/ any main
+      deb-src [signed-by=/etc/apt/keyrings/opentofu.gpg,/etc/apt/keyrings/opentofu-repo.gpg] https://packages.opentofu.org/opentofu/tofu/any/ any main
+  register: opentofu_repository
+
+- name: Install OpenTofu
+  ansible.builtin.apt:
+    name: tofu
+    state: present
+    update_cache: true
+
+- name: Create root SSH directory
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    mode: "0700"
+
+- name: Check Ansible private key
+  ansible.builtin.stat:
+    path: /root/.ssh/ansible
+  register: ansible_private_key
+
+- name: Check Ansible public key
+  ansible.builtin.stat:
+    path: /root/.ssh/ansible.pub
+  register: ansible_public_key
+
+- name: Reject incomplete Ansible keypair
+  ansible.builtin.assert:
+    that:
+      - ansible_private_key.stat.exists or not ansible_public_key.stat.exists
+    fail_msg: >-
+      Ansible public key exists without its private key:
+      /root/.ssh/ansible.pub
+
+- name: Create Ansible SSH keypair
+  ansible.builtin.command:
+    argv:
+      - ssh-keygen
+      - -q
+      - -t
+      - ed25519
+      - -N
+      - ""
+      - -C
+      - ansible
+      - -f
+      - /root/.ssh/ansible
+  when: not ansible_private_key.stat.exists
+
+- name: Check generated Ansible public key
+  ansible.builtin.stat:
+    path: /root/.ssh/ansible.pub
+  register: generated_ansible_public_key
+
+- name: Recover Ansible public key from private key
+  ansible.builtin.command:
+    argv:
+      - ssh-keygen
+      - -y
+      - -f
+      - /root/.ssh/ansible
+  register: recovered_ansible_public_key
+  changed_when: false
+  when: not generated_ansible_public_key.stat.exists
+
+- name: Write recovered Ansible public key
+  ansible.builtin.copy:
+    dest: /root/.ssh/ansible.pub
+    content: "{{ recovered_ansible_public_key.stdout }}\n"
+    mode: "0644"
+  when: not generated_ansible_public_key.stat.exists
+
+- name: Set Ansible private key permissions
+  ansible.builtin.file:
+    path: /root/.ssh/ansible
+    mode: "0600"
+
+- name: Set Ansible public key permissions
+  ansible.builtin.file:
+    path: /root/.ssh/ansible.pub
+    mode: "0644"
+
+- name: Authorize Ansible key for local root SSH
+  ansible.builtin.lineinfile:
+    path: /root/.ssh/authorized_keys
+    line: "{{ lookup('ansible.builtin.file', '/root/.ssh/ansible.pub') }}"
+    create: true
+    mode: "0600"
+
+- name: Verify OpenTofu
+  ansible.builtin.command:
+    argv:
+      - tofu
+      - version
+  changed_when: false
+
+- name: Verify Just
+  ansible.builtin.command:
+    argv:
+      - just
+      - --version
+  changed_when: false
+
+- name: Verify Ansible SSH key
+  ansible.builtin.command:
+    argv:
+      - ssh-keygen
+      - -l
+      - -f
+      - /root/.ssh/ansible.pub
+  changed_when: false
