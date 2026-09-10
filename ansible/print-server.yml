@@ -116,6 +116,7 @@
           - cupsctl
           - --remote-any
           - --share-printers
+          - --no-debug-logging
       changed_when: false
 
     - name: Configure CUPS server alias
