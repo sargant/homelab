@@ -9,6 +9,7 @@ resource "time_sleep" "tailscale_dhcp" {
   create_duration = "10s"
 
   triggers = {
+    client_id        = unifi_client.tailscale.id
     mac              = unifi_client.tailscale.mac
     fixed_ip         = unifi_client.tailscale.fixed_ip
     local_dns_record = unifi_client.tailscale.local_dns_record
