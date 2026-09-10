@@ -1,3 +1,21 @@
+resource "unifi_client" "paperless" {
+  mac              = "02:9D:44:7C:A1:B6"
+  name             = "Paperless"
+  fixed_ip         = "192.168.37.44"
+  local_dns_record = "paperless.home.arpa"
+}
+
+resource "time_sleep" "paperless_dhcp" {
+  create_duration = "10s"
+
+  triggers = {
+    client_id        = unifi_client.paperless.id
+    mac              = unifi_client.paperless.mac
+    fixed_ip         = unifi_client.paperless.fixed_ip
+    local_dns_record = unifi_client.paperless.local_dns_record
+  }
+}
+
 resource "proxmox_virtual_environment_file" "paperless_cloud_init" {
   content_type = "snippets"
   datastore_id = "local"
@@ -94,4 +112,6 @@ resource "proxmox_virtual_environment_vm" "paperless" {
   serial_device {
     device = "socket"
   }
+
+  depends_on = [time_sleep.paperless_dhcp]
 }
