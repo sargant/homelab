@@ -263,13 +263,6 @@
     - name: Apply CUPS changes before verification
       ansible.builtin.meta: flush_handlers
 
-    - name: Return CUPS logging to normal
-      ansible.builtin.command:
-        argv:
-          - cupsctl
-          - --no-debug-logging
-      changed_when: false
-
     - name: Verify print server without printing
       ansible.builtin.shell: |
         set -euo pipefail
@@ -333,7 +326,6 @@
         msg:
           - "{{ verification.stdout_lines }}"
           - "{{ airprint_status.stdout_lines }}"
-          - "Caddy/reverse-proxy configuration is not managed by this playbook."
 
   handlers:
     - name: Restart CUPS
