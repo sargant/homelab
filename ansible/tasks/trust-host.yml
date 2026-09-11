@@ -1,0 +1,29 @@
+---
+- name: Read target ED25519 host key from Proxmox
+  ansible.builtin.command:
+    argv:
+      - pct
+      - exec
+      - "{{ proxmox_ctid | string }}"
+      - --
+      - cat
+      - /etc/ssh/ssh_host_ed25519_key.pub
+  delegate_to: localhost
+  register: target_ssh_host_key
+  changed_when: false
+  retries: 10
+  delay: 1
+  until:
+    - target_ssh_host_key.rc == 0
+    - target_ssh_host_key.stdout | trim | length > 0
+
+- name: Trust target ED25519 host key
+  ansible.builtin.known_hosts:
+    path: /root/.ssh/known_hosts
+    name: "{{ hostvars[inventory_hostname].ansible_host }}"
+    key: >-
+      {{ hostvars[inventory_hostname].ansible_host }}
+      {{ target_ssh_host_key.stdout | trim }}
+    hash_host: true
+    state: present
+  delegate_to: localhost
