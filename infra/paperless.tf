@@ -35,7 +35,7 @@ resource "proxmox_virtual_environment_vm" "paperless" {
   name        = local.hosts.paperless.hostname
   description = "Paperless application host"
   node_name   = "vm-host"
-  vm_id       = 1044
+  vm_id       = 1099
 
   boot_order      = ["scsi0"]
   on_boot         = true
