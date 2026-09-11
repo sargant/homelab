@@ -17,8 +17,8 @@ locals {
     paperless = {
       hostname = "paperless"
       mac      = "02:9D:44:7C:A1:B6"
-      ip       = "192.168.37.44"
-      dns      = "paperless.home.arpa"
+      ip       = "192.168.37.99"
+      dns      = "paperless-test.home.arpa"
     }
   }
 }
