@@ -20,68 +20,18 @@
       changed_when: false
 
   tasks:
-    - name: Install management tool prerequisites
+    - name: Install management prerequisites
       ansible.builtin.apt:
         name:
           - ansible-core
-          - ca-certificates
-          - curl
-          - gnupg
           - just
           - openssh-client
         state: present
         update_cache: true
         cache_valid_time: 3600
 
-    - name: Create apt keyring directory
-      ansible.builtin.file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: "0755"
-
-    - name: Install OpenTofu signing key
-      ansible.builtin.get_url:
-        url: https://get.opentofu.org/opentofu.gpg
-        dest: /etc/apt/keyrings/opentofu.gpg
-        mode: "0644"
-
-    - name: Download OpenTofu repository signing key
-      ansible.builtin.get_url:
-        url: https://packages.opentofu.org/opentofu/tofu/gpgkey
-        dest: /etc/apt/keyrings/opentofu-repo.asc
-        mode: "0644"
-      register: opentofu_repo_key
-
-    - name: Check OpenTofu repository keyring
-      ansible.builtin.stat:
-        path: /etc/apt/keyrings/opentofu-repo.gpg
-      register: opentofu_repo_keyring
-
-    - name: Build OpenTofu repository keyring
-      ansible.builtin.command:
-        argv:
-          - gpg
-          - --batch
-          - --yes
-          - --dearmor
-          - --output
-          - /etc/apt/keyrings/opentofu-repo.gpg
-          - /etc/apt/keyrings/opentofu-repo.asc
-      when: opentofu_repo_key.changed or not opentofu_repo_keyring.stat.exists
-
-    - name: Configure OpenTofu apt repository
-      ansible.builtin.copy:
-        dest: /etc/apt/sources.list.d/opentofu.list
-        mode: "0644"
-        content: |
-          deb [signed-by=/etc/apt/keyrings/opentofu.gpg,/etc/apt/keyrings/opentofu-repo.gpg] https://packages.opentofu.org/opentofu/tofu/any/ any main
-          deb-src [signed-by=/etc/apt/keyrings/opentofu.gpg,/etc/apt/keyrings/opentofu-repo.gpg] https://packages.opentofu.org/opentofu/tofu/any/ any main
-
     - name: Install OpenTofu
-      ansible.builtin.apt:
-        name: tofu
-        state: present
-        update_cache: true
+      ansible.builtin.import_tasks: tasks/install-opentofu.yml
 
     - name: Create root SSH directory
       ansible.builtin.file:
@@ -141,13 +91,6 @@
 
     - name: Configure interactive shell
       ansible.builtin.import_tasks: tasks/configure-shell.yml
-
-    - name: Verify OpenTofu
-      ansible.builtin.command:
-        argv:
-          - tofu
-          - version
-      changed_when: false
 
     - name: Verify Just
       ansible.builtin.command:
