@@ -30,12 +30,19 @@ services:
       - media:/usr/src/paperless/media
       - /mnt/backup:/usr/src/paperless/export
       - ./consume:/usr/src/paperless/consume
+    secrets:
+      - paperless_secret_key
     environment:
       PAPERLESS_REDIS: redis://broker:6379
       PAPERLESS_DBHOST: db
       PAPERLESS_DBENGINE: postgresql
       PAPERLESS_TIME_ZONE: Europe/London
       PAPERLESS_OCR_LANGUAGE: eng
+      PAPERLESS_SECRET_KEY_FILE: /run/secrets/paperless_secret_key
+
+secrets:
+  paperless_secret_key:
+    file: ./secrets/paperless_secret_key
 
 volumes:
   data:
