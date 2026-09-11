@@ -16,16 +16,17 @@ apply:
 # Configure the print server after verifying its infrastructure is converged.
 print-server:
   tofu -chdir=infra plan -target=proxmox_virtual_environment_container.print_server -detailed-exitcode
-  just _trust-host print-server.home.arpa
+  just trust-host print-server.home.arpa
   ansible-playbook -i ansible/inventory.yml ansible/print-server.yml
 
 # Configure the Tailscale router after verifying its infrastructure is converged.
 tailscale:
   tofu -chdir=infra plan -target=proxmox_virtual_environment_container.tailscale -detailed-exitcode
-  just _trust-host tailscale.home.arpa
+  just trust-host tailscale.home.arpa
   ansible-playbook -i ansible/inventory.yml ansible/tailscale.yml
 
 # Implicitly trust target hosts, even if their SSH keys have changed
-_trust-host host:
+[private]
+trust-host host:
   ssh-keygen -R {{host}} >/dev/null 2>&1 || true
   ssh-keyscan -H -t ed25519 {{host}} 2>/dev/null >> ~/.ssh/known_hosts
