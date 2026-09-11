@@ -93,6 +93,7 @@ resource "proxmox_virtual_environment_vm" "paperless" {
     type = "l26"
   }
 
+  # Required by the provider when resizing imported Debian cloud-image disks.
   serial_device {
     device = "socket"
   }
