@@ -25,7 +25,7 @@ provider "proxmox" {
   ssh {
     username    = "root"
     agent       = false
-    private_key = file("/root/.ssh/ansible")
+    private_key = file("/root/.ssh/vm-management")
   }
 }
 
