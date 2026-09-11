@@ -110,6 +110,33 @@
           {{ paperless_backup_mount }} is not mounted from
           {{ paperless_backup_source }}.
 
+    - name: Verify Paperless backup NFS read/write access
+      block:
+        - name: Write Paperless backup mount probe
+          ansible.builtin.copy:
+            dest: "{{ paperless_backup_mount }}/.ansible-write-test"
+            content: "paperless backup mount test\n"
+            mode: "0600"
+          changed_when: false
+
+        - name: Read Paperless backup mount probe
+          ansible.builtin.slurp:
+            src: "{{ paperless_backup_mount }}/.ansible-write-test"
+          register: paperless_backup_probe
+
+        - name: Check Paperless backup mount probe
+          ansible.builtin.assert:
+            that:
+              - (paperless_backup_probe.content | b64decode) ==
+                'paperless backup mount test\n'
+            fail_msg: Paperless backup NFS read/write probe failed.
+      always:
+        - name: Remove Paperless backup mount probe
+          ansible.builtin.file:
+            path: "{{ paperless_backup_mount }}/.ansible-write-test"
+            state: absent
+          changed_when: false
+
     - name: Configure Paperless Samba inbox
       ansible.builtin.copy:
         dest: /etc/samba/smb.conf
