@@ -48,7 +48,7 @@ resource "proxmox_virtual_environment_container" "tailscale" {
 
     user_account {
       keys = [
-        trimspace(file("/root/.ssh/ansible.pub"))
+        trimspace(file("/root/.ssh/vm-management.pub"))
       ]
     }
 
