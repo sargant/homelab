@@ -18,4 +18,9 @@ apt-get install -y ansible-core just
 just --version >/dev/null
 ansible-playbook --version >/dev/null
 
-echo "Done. Run \"just init\" to continue."
+cat <<'EOF'
+Done. Next:
+  cp .env.example .env
+  # fill in the required values in .env
+  just init
+EOF
