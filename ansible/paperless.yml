@@ -35,9 +35,11 @@
         nfs_source: "{{ paperless_backup_source }}"
         nfs_mountpoint: "{{ paperless_backup_mount }}"
 
-    - name: Install Samba
+    - name: Install Paperless host packages
       ansible.builtin.apt:
-        name: samba
+        name:
+          - openssl
+          - samba
         state: present
 
     - name: Create Paperless consume directory
@@ -57,14 +59,9 @@
         mode: "0700"
 
     - name: Generate Paperless secret key
-      ansible.builtin.command:
-        argv:
-          - python3
-          - -c
-          - >-
-            import pathlib, secrets, sys;
-            pathlib.Path(sys.argv[1]).write_text(secrets.token_urlsafe(64) + "\n")
-          - "{{ paperless_secret_key_path }}"
+      ansible.builtin.shell: >-
+        umask 077 && openssl rand -hex 32 > {{ paperless_secret_key_path | quote }}
+      args:
         creates: "{{ paperless_secret_key_path }}"
 
     - name: Secure Paperless secret key
