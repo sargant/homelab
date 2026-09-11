@@ -1,0 +1,105 @@
+---
+- name: Check NFS mount configuration
+  ansible.builtin.assert:
+    that:
+      - nfs_source is defined
+      - nfs_source | trim | length > 0
+      - nfs_mountpoint is defined
+      - nfs_mountpoint | trim | length > 0
+    fail_msg: nfs_source and nfs_mountpoint must be defined.
+
+- name: Install NFS client
+  ansible.builtin.apt:
+    name: nfs-common
+    state: present
+
+- name: Create NFS mountpoint
+  ansible.builtin.file:
+    path: "{{ nfs_mountpoint }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Read current NFS mount
+  ansible.builtin.command:
+    argv:
+      - findmnt
+      - -n
+      - -o
+      - SOURCE
+      - "{{ nfs_mountpoint }}"
+  register: nfs_current_mount
+  changed_when: false
+  failed_when: false
+
+- name: Reject unexpected NFS mount
+  ansible.builtin.assert:
+    that:
+      - nfs_current_mount.rc != 0 or nfs_current_mount.stdout | trim == nfs_source
+    fail_msg: >-
+      {{ nfs_mountpoint }} is mounted from {{ nfs_current_mount.stdout | trim }},
+      expected {{ nfs_source }}.
+
+- name: Configure NFS mount
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^\S+\s+{{ nfs_mountpoint | regex_escape }}\s+'
+    line: >-
+      {{ nfs_source }} {{ nfs_mountpoint }} nfs4
+      {{ nfs_mount_options | default('defaults,_netdev') }} 0 0
+    state: present
+
+- name: Mount NFS storage
+  ansible.builtin.command:
+    argv:
+      - mount
+      - "{{ nfs_mountpoint }}"
+  when: nfs_current_mount.rc != 0
+  changed_when: true
+
+- name: Verify NFS mount
+  ansible.builtin.command:
+    argv:
+      - findmnt
+      - -n
+      - -t
+      - nfs4
+      - -o
+      - SOURCE
+      - "{{ nfs_mountpoint }}"
+  register: nfs_mount_check
+  changed_when: false
+
+- name: Check NFS source
+  ansible.builtin.assert:
+    that:
+      - nfs_mount_check.stdout | trim == nfs_source
+    fail_msg: >-
+      {{ nfs_mountpoint }} is not mounted from {{ nfs_source }}.
+
+- name: Verify NFS read/write access
+  block:
+    - name: Write NFS mount probe
+      ansible.builtin.copy:
+        dest: "{{ nfs_mountpoint }}/.ansible-nfs-write-test"
+        content: "ansible nfs mount test\n"
+        mode: "0600"
+      changed_when: false
+
+    - name: Read NFS mount probe
+      ansible.builtin.slurp:
+        src: "{{ nfs_mountpoint }}/.ansible-nfs-write-test"
+      register: nfs_mount_probe
+
+    - name: Check NFS mount probe
+      ansible.builtin.assert:
+        that:
+          - (nfs_mount_probe.content | b64decode) == 'ansible nfs mount test\n'
+        fail_msg: NFS read/write probe failed for {{ nfs_mountpoint }}.
+  always:
+    - name: Remove NFS mount probe
+      ansible.builtin.file:
+        path: "{{ nfs_mountpoint }}/.ansible-nfs-write-test"
+        state: absent
+      changed_when: false
