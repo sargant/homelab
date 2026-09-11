@@ -8,6 +8,7 @@
     paperless_backup_mount: /mnt/backup
     paperless_install_path: /opt/paperless
     paperless_consume_path: "{{ paperless_install_path }}/consume"
+    paperless_export_path: "{{ paperless_install_path }}/export"
     paperless_secrets_path: "{{ paperless_install_path }}/secrets"
     paperless_secret_key_path: "{{ paperless_secrets_path }}/paperless_secret_key"
 
@@ -49,6 +50,14 @@
         owner: "1000"
         group: "1000"
         mode: "0777"
+
+    - name: Create Paperless export directory
+      ansible.builtin.file:
+        path: "{{ paperless_export_path }}"
+        state: directory
+        owner: "1000"
+        group: "1000"
+        mode: "0755"
 
     - name: Create Paperless secrets directory
       ansible.builtin.file:
