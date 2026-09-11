@@ -79,29 +79,40 @@
   ansible.builtin.set_fact:
     target_ssh_host_key_material: >-
       {{
-        target_lxc_ssh_host_keys.stdout_lines
-        if proxmox_ctid is defined
-        else (
-          target_vm_ssh_host_key_result['out-data']
-          | trim
-        ).split('\n')
+        (
+          target_lxc_ssh_host_keys.stdout_lines
+          if proxmox_ctid is defined
+          else target_vm_ssh_host_key_result['out-data'].split('\n')
+        )
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | sort
+        | list
       }}
 
 - name: Read currently trusted SSH host keys
   ansible.builtin.shell: |
     ssh-keygen -F "{{ hostvars[inventory_hostname].ansible_host }}" \
       -f /root/.ssh/known_hosts 2>/dev/null |
-      awk '!/^#/ {print $2, $3}' |
-      sort -u
+      awk '!/^#/ {print $2, $3}'
   args:
     executable: /bin/bash
   delegate_to: localhost
   register: trusted_ssh_host_keys
   changed_when: false
 
-- name: Compare trusted SSH host keys
+- name: Normalize trusted SSH host keys
   ansible.builtin.set_fact:
-    trusted_ssh_host_key_material: "{{ trusted_ssh_host_keys.stdout_lines }}"
+    trusted_ssh_host_key_material: >-
+      {{
+        trusted_ssh_host_keys.stdout_lines
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | sort
+        | list
+      }}
 
 - name: Remove stale SSH host keys
   ansible.builtin.known_hosts:
