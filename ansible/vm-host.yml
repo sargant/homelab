@@ -1,17 +1,11 @@
 ---
 - name: Initialize Proxmox management host
   hosts: vm_host
-  gather_facts: true
+  gather_facts: false
 
-  pre_tasks:
-    - name: Check operating system
-      ansible.builtin.assert:
-        that:
-          - ansible_facts.distribution == "Debian"
-          - ansible_facts.distribution_major_version == "13"
-        fail_msg: >-
-          Expected Debian 13, found
-          {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}.
+  tasks:
+    - name: Bootstrap Debian host
+      ansible.builtin.import_tasks: tasks/bootstrap-debian.yml
 
     - name: Check Proxmox VE
       ansible.builtin.command:
@@ -19,7 +13,6 @@
           - pveversion
       changed_when: false
 
-  tasks:
     - name: Install management prerequisites
       ansible.builtin.apt:
         name:
@@ -32,12 +25,6 @@
 
     - name: Install OpenTofu
       ansible.builtin.import_tasks: tasks/install-opentofu.yml
-
-    - name: Create root SSH directory
-      ansible.builtin.file:
-        path: /root/.ssh
-        state: directory
-        mode: "0700"
 
     - name: Check VM management private key
       ansible.builtin.stat:
@@ -88,12 +75,6 @@
         line: "{{ lookup('ansible.builtin.file', '/root/.ssh/vm-management.pub') }}"
         create: true
         mode: "0600"
-
-    - name: Harden SSH
-      ansible.builtin.import_tasks: tasks/configure-ssh.yml
-
-    - name: Configure interactive shell
-      ansible.builtin.import_tasks: tasks/configure-shell.yml
 
     - name: Verify Just
       ansible.builtin.command:
