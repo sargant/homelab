@@ -1,11 +1,12 @@
 [global]
     map to guest = Bad User
     hosts allow = {{ lan_subnet }} 127.0.0.0/8
-    hosts deny = 0.0.0.0/0
+    hosts deny = ALL
 
 [paperless-inbox]
     path = {{ paperless_consume_path }}
     read only = no
     guest ok = yes
     create mask = 0666
+    force create mode = 0666
     directory mask = 0777
