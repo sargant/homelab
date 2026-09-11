@@ -26,116 +26,24 @@
     - name: Install Docker
       ansible.builtin.import_tasks: tasks/install-docker.yml
 
-    - name: Install Paperless storage services
-      ansible.builtin.apt:
-        name:
-          - nfs-common
-          - samba
-        state: present
-
-    - name: Create Paperless storage directories
-      ansible.builtin.file:
-        path: "{{ item.path }}"
-        state: directory
-        owner: "{{ item.owner }}"
-        group: "{{ item.group }}"
-        mode: "{{ item.mode }}"
-      loop:
-        - path: "{{ paperless_backup_mount }}"
-          owner: root
-          group: root
-          mode: "0755"
-        - path: "{{ paperless_consume_path }}"
-          owner: "1000"
-          group: "1000"
-          mode: "0777"
-
     - name: Configure Paperless backup NFS mount
-      ansible.builtin.lineinfile:
-        path: /etc/fstab
-        regexp: '^\S+\s+/mnt/backup\s+'
-        line: >-
-          {{ paperless_backup_source }} {{ paperless_backup_mount }}
-          nfs4 defaults,_netdev 0 0
+      ansible.builtin.import_tasks: tasks/configure-nfs-mount.yml
+      vars:
+        nfs_source: "{{ paperless_backup_source }}"
+        nfs_mountpoint: "{{ paperless_backup_mount }}"
+
+    - name: Install Samba
+      ansible.builtin.apt:
+        name: samba
         state: present
 
-    - name: Read current Paperless backup mount
-      ansible.builtin.command:
-        argv:
-          - findmnt
-          - -n
-          - -o
-          - SOURCE
-          - "{{ paperless_backup_mount }}"
-      register: paperless_backup_current_mount
-      changed_when: false
-      failed_when: false
-
-    - name: Reject unexpected Paperless backup mount
-      ansible.builtin.assert:
-        that:
-          - paperless_backup_current_mount.rc != 0 or
-            paperless_backup_current_mount.stdout | trim == paperless_backup_source
-        fail_msg: >-
-          {{ paperless_backup_mount }} is mounted from
-          {{ paperless_backup_current_mount.stdout | trim }}, expected
-          {{ paperless_backup_source }}.
-
-    - name: Mount Paperless backup storage
-      ansible.builtin.command:
-        argv:
-          - mount
-          - "{{ paperless_backup_mount }}"
-      when: paperless_backup_current_mount.rc != 0
-      changed_when: true
-
-    - name: Verify Paperless backup NFS mount
-      ansible.builtin.command:
-        argv:
-          - findmnt
-          - -n
-          - -t
-          - nfs4
-          - -o
-          - SOURCE
-          - "{{ paperless_backup_mount }}"
-      register: paperless_backup_mount_check
-      changed_when: false
-
-    - name: Check Paperless backup NFS source
-      ansible.builtin.assert:
-        that:
-          - paperless_backup_mount_check.stdout | trim == paperless_backup_source
-        fail_msg: >-
-          {{ paperless_backup_mount }} is not mounted from
-          {{ paperless_backup_source }}.
-
-    - name: Verify Paperless backup NFS read/write access
-      block:
-        - name: Write Paperless backup mount probe
-          ansible.builtin.copy:
-            dest: "{{ paperless_backup_mount }}/.ansible-write-test"
-            content: "paperless backup mount test\n"
-            mode: "0600"
-          changed_when: false
-
-        - name: Read Paperless backup mount probe
-          ansible.builtin.slurp:
-            src: "{{ paperless_backup_mount }}/.ansible-write-test"
-          register: paperless_backup_probe
-
-        - name: Check Paperless backup mount probe
-          ansible.builtin.assert:
-            that:
-              - (paperless_backup_probe.content | b64decode) ==
-                'paperless backup mount test\n'
-            fail_msg: Paperless backup NFS read/write probe failed.
-      always:
-        - name: Remove Paperless backup mount probe
-          ansible.builtin.file:
-            path: "{{ paperless_backup_mount }}/.ansible-write-test"
-            state: absent
-          changed_when: false
+    - name: Create Paperless consume directory
+      ansible.builtin.file:
+        path: "{{ paperless_consume_path }}"
+        state: directory
+        owner: "1000"
+        group: "1000"
+        mode: "0777"
 
     - name: Configure Paperless Samba inbox
       ansible.builtin.copy:
