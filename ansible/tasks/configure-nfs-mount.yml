@@ -90,16 +90,24 @@
 
 - name: Verify NFS read/write access
   block:
+    - name: Create unique NFS mount probe
+      ansible.builtin.tempfile:
+        state: file
+        path: "{{ nfs_mountpoint }}"
+        prefix: .ansible-nfs-write-test-
+      register: nfs_mount_probe_file
+      changed_when: false
+
     - name: Write NFS mount probe
       ansible.builtin.copy:
-        dest: "{{ nfs_mountpoint }}/.ansible-nfs-write-test"
+        dest: "{{ nfs_mount_probe_file.path }}"
         content: "ansible nfs mount test\n"
         mode: "0600"
       changed_when: false
 
     - name: Read NFS mount probe
       ansible.builtin.slurp:
-        src: "{{ nfs_mountpoint }}/.ansible-nfs-write-test"
+        src: "{{ nfs_mount_probe_file.path }}"
       register: nfs_mount_probe
 
     - name: Check NFS mount probe
@@ -110,6 +118,7 @@
   always:
     - name: Remove NFS mount probe
       ansible.builtin.file:
-        path: "{{ nfs_mountpoint }}/.ansible-nfs-write-test"
+        path: "{{ nfs_mount_probe_file.path }}"
         state: absent
+      when: nfs_mount_probe_file is defined and nfs_mount_probe_file.path is defined
       changed_when: false
