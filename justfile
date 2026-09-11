@@ -1,7 +1,6 @@
 set dotenv-load
 set dotenv-required
 
-mod infra
 mod update 'ansible'
 
 # Initialize the Proxmox management host with Ansible.
@@ -10,8 +9,8 @@ init:
 
 # Preview infrastructure changes.
 plan:
-  just infra plan
+  tofu -chdir=infra plan
 
 # Apply infrastructure changes.
 apply:
-  just infra apply
+  tofu -chdir=infra apply
