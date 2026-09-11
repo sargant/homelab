@@ -4,7 +4,6 @@
   gather_facts: false
 
   vars:
-    proxmox_ctid: 1041
     print_server_hostname: print-server
     print_server_host: print-server.home.arpa
     printer_host: printer.home.arpa
