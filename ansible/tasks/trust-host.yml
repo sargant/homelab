@@ -82,7 +82,7 @@
         (
           target_lxc_ssh_host_keys.stdout_lines
           if proxmox_ctid is defined
-          else target_vm_ssh_host_key_result['out-data'].split('\n')
+          else target_vm_ssh_host_key_result['out-data'].splitlines()
         )
         | map('trim')
         | reject('equalto', '')
