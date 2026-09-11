@@ -12,6 +12,8 @@ all:
 
     tailscale:
       ansible_host: tailscale.home.arpa
+      proxmox_ctid: 1021
 
     print_server:
       ansible_host: print-server.home.arpa
+      proxmox_ctid: 1041
