@@ -6,7 +6,8 @@
   vars:
     paperless_backup_source: "{{ hostvars['nas'].ansible_host }}:/volume1/backup/paperless"
     paperless_backup_mount: /mnt/backup
-    paperless_consume_path: /opt/paperless/consume
+    paperless_install_path: /opt/paperless
+    paperless_consume_path: "{{ paperless_install_path }}/consume"
 
   pre_tasks:
     - name: Trust SSH host key
@@ -44,6 +45,14 @@
         owner: "1000"
         group: "1000"
         mode: "0777"
+
+    - name: Install Paperless Compose definition
+      ansible.builtin.copy:
+        src: files/paperless/compose.yml
+        dest: "{{ paperless_install_path }}/compose.yml"
+        owner: root
+        group: root
+        mode: "0644"
 
     - name: Configure Paperless Samba inbox
       ansible.builtin.copy:
