@@ -46,6 +46,7 @@
       {{ nfs_source }} {{ nfs_mountpoint }} nfs4
       {{ nfs_mount_options | default('defaults,_netdev') }} 0 0
     state: present
+  register: nfs_fstab
 
 - name: Mount NFS storage
   ansible.builtin.command:
@@ -53,6 +54,18 @@
       - mount
       - "{{ nfs_mountpoint }}"
   when: nfs_current_mount.rc != 0
+  changed_when: true
+
+- name: Remount NFS storage after configuration change
+  ansible.builtin.command:
+    argv:
+      - mount
+      - -o
+      - remount
+      - "{{ nfs_mountpoint }}"
+  when:
+    - nfs_current_mount.rc == 0
+    - nfs_fstab.changed
   changed_when: true
 
 - name: Verify NFS mount
