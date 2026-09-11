@@ -69,28 +69,12 @@
         path: /root/.ssh/vm-management.pub
         mode: "0644"
 
-    - name: Check for managed VM management SSH key block
-      ansible.builtin.command:
-        argv:
-          - grep
-          - -Fq
-          - "# BEGIN ANSIBLE MANAGED VM MANAGEMENT SSH KEY"
-          - /root/.ssh/authorized_keys
-      register: vm_management_key_block
-      changed_when: false
-      failed_when: vm_management_key_block.rc not in [0, 1]
-
-    - name: Remove legacy unmarked VM management SSH key
-      ansible.builtin.lineinfile:
-        path: /root/.ssh/authorized_keys
-        line: "{{ lookup('ansible.builtin.file', '/root/.ssh/vm-management.pub') }}"
-        state: absent
-      when: vm_management_key_block.rc == 1
-
     - name: Authorize VM management key for local root SSH
       ansible.builtin.blockinfile:
         path: /root/.ssh/authorized_keys
         create: true
+        owner: root
+        group: root
         mode: "0600"
         marker: "# {mark} ANSIBLE MANAGED VM MANAGEMENT SSH KEY"
         block: "{{ lookup('ansible.builtin.file', '/root/.ssh/vm-management.pub') }}"
