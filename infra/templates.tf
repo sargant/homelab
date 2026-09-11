@@ -9,10 +9,12 @@ resource "proxmox_download_file" "debian_13" {
 }
 
 resource "proxmox_download_file" "debian_13_cloud" {
-  content_type = "import"
-  datastore_id = "local"
-  node_name    = "vm-host"
-  url          = "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2"
-  file_name    = "debian-13-generic-amd64.qcow2"
-  overwrite    = false
+  content_type       = "import"
+  datastore_id       = "local"
+  node_name          = "vm-host"
+  url                = "https://cloud.debian.org/cdimage/cloud/trixie/20260601-2496/debian-13-generic-amd64-20260601-2496.qcow2"
+  file_name          = "debian-13-generic-amd64-20260601-2496.qcow2"
+  checksum_algorithm = "sha512"
+  checksum           = "97675b27e69153002c4e13644e36200c8f9067f661dca00918c54f1cacbdb88d4bff8c0fbf5cf5d63a0397bdf0cc472d7a6372bae5281bf7ced756249c10f8a2"
+  overwrite          = false
 }
