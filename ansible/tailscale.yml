@@ -4,7 +4,6 @@
   gather_facts: false
 
   vars:
-    proxmox_ctid: 1021
     tailscale_hostname: tailscale
     tailscale_subnet_route: 192.168.37.0/24
     tailscale_lan_interface: eth0
