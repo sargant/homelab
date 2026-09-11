@@ -56,22 +56,11 @@
 
     - name: Configure Paperless Samba inbox
       ansible.builtin.copy:
+        src: files/paperless/smb.conf
         dest: /etc/samba/smb.conf
         owner: root
         group: root
         mode: "0644"
-        content: |
-          [global]
-              map to guest = Bad User
-              hosts allow = 192.168.37.0/24 127.0.0.0/8
-              hosts deny = 0.0.0.0/0
-
-          [paperless-inbox]
-              path = {{ paperless_consume_path }}
-              read only = no
-              guest ok = yes
-              create mask = 0666
-              directory mask = 0777
       notify: Restart Samba
 
     - name: Validate Samba configuration
