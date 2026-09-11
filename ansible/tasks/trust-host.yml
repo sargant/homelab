@@ -1,0 +1,73 @@
+---
+- name: Read target ED25519 host key from Proxmox
+  ansible.builtin.command:
+    argv:
+      - pct
+      - exec
+      - "{{ proxmox_ctid | string }}"
+      - --
+      - cat
+      - /etc/ssh/ssh_host_ed25519_key.pub
+  delegate_to: localhost
+  register: target_ssh_host_key
+  changed_when: false
+  retries: 10
+  delay: 1
+  until:
+    - target_ssh_host_key.rc == 0
+    - target_ssh_host_key.stdout | trim | length > 0
+
+- name: Read currently trusted SSH host keys
+  ansible.builtin.command:
+    argv:
+      - ssh-keygen
+      - -F
+      - "{{ hostvars[inventory_hostname].ansible_host }}"
+      - -f
+      - /root/.ssh/known_hosts
+  delegate_to: localhost
+  register: trusted_ssh_host_keys
+  changed_when: false
+  failed_when: false
+
+- name: Compare trusted SSH host keys
+  ansible.builtin.set_fact:
+    trusted_ssh_host_key_material: >-
+      {{
+        trusted_ssh_host_keys.stdout_lines
+        | reject('match', '^#')
+        | map('regex_replace', '^\\S+\\s+(\\S+\\s+\\S+).*$','\\1')
+        | unique
+        | sort
+        | list
+      }}
+    target_ssh_host_key_material: >-
+      {{
+        [
+          (
+            target_ssh_host_key.stdout
+            | trim
+          ).split()[0:2]
+          | join(' ')
+        ]
+      }}
+
+- name: Remove stale SSH host keys
+  ansible.builtin.known_hosts:
+    path: /root/.ssh/known_hosts
+    name: "{{ hostvars[inventory_hostname].ansible_host }}"
+    state: absent
+  delegate_to: localhost
+  when: trusted_ssh_host_key_material != target_ssh_host_key_material
+
+- name: Trust target ED25519 host key
+  ansible.builtin.known_hosts:
+    path: /root/.ssh/known_hosts
+    name: "{{ hostvars[inventory_hostname].ansible_host }}"
+    key: >-
+      {{ hostvars[inventory_hostname].ansible_host }}
+      {{ target_ssh_host_key.stdout | trim }}
+    hash_host: true
+    state: present
+  delegate_to: localhost
+  when: trusted_ssh_host_key_material != target_ssh_host_key_material

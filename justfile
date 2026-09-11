@@ -15,10 +15,10 @@ apply:
 
 # Configure the print server after verifying its infrastructure is converged.
 print-server:
-  tofu -chdir=infra plan -target=proxmox_virtual_environment_container.print_server -detailed-exitcode
+  tofu -chdir=infra plan -target=proxmox_virtual_environment_container.print_server -detailed-exitcode -compact-warnings
   ansible-playbook -i ansible/inventory.yml ansible/print-server.yml
 
 # Configure the Tailscale router after verifying its infrastructure is converged.
 tailscale:
-  tofu -chdir=infra plan -target=proxmox_virtual_environment_container.tailscale -detailed-exitcode
+  tofu -chdir=infra plan -target=proxmox_virtual_environment_container.tailscale -detailed-exitcode -compact-warnings
   ansible-playbook -i ansible/inventory.yml ansible/tailscale.yml
