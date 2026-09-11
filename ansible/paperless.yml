@@ -4,7 +4,7 @@
   gather_facts: false
 
   vars:
-    paperless_backup_source: nas.home.arpa:/volume1/backup/paperless
+    paperless_backup_source: "{{ hostvars['nas'].ansible_host }}:/volume1/backup/paperless"
     paperless_backup_mount: /mnt/backup
     paperless_consume_path: /opt/paperless/consume
 
