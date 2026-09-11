@@ -114,6 +114,13 @@
         | list
       }}
 
+- name: Show SSH host key mismatch
+  ansible.builtin.debug:
+    msg:
+      target: "{{ target_ssh_host_key_material }}"
+      trusted: "{{ trusted_ssh_host_key_material }}"
+  when: trusted_ssh_host_key_material != target_ssh_host_key_material
+
 - name: Remove stale SSH host keys
   ansible.builtin.known_hosts:
     path: /root/.ssh/known_hosts
