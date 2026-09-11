@@ -22,33 +22,17 @@ resource "proxmox_virtual_environment_file" "paperless_cloud_init" {
   node_name    = "vm-host"
 
   source_raw {
-    data = <<-EOF
-      #cloud-config
-      hostname: paperless
-      disable_root: false
-      ssh_pwauth: false
+    data = templatefile("${path.module}/debian-vm.yaml.tftpl", {
+      hostname           = local.hosts.paperless.hostname
+      ssh_authorized_key = trimspace(file("/root/.ssh/vm-management.pub"))
+    })
 
-      users:
-        - name: root
-          lock_passwd: true
-          shell: /bin/bash
-          ssh_authorized_keys:
-            - ${trimspace(file("/root/.ssh/vm-management.pub"))}
-
-      package_update: true
-      packages:
-        - qemu-guest-agent
-
-      runcmd:
-        - systemctl enable --now qemu-guest-agent
-    EOF
-
-    file_name = "paperless-cloud-init.yaml"
+    file_name = "${local.hosts.paperless.hostname}-cloud-init.yaml"
   }
 }
 
 resource "proxmox_virtual_environment_vm" "paperless" {
-  name        = "paperless"
+  name        = local.hosts.paperless.hostname
   description = "Paperless application host"
   node_name   = "vm-host"
   vm_id       = 1044
