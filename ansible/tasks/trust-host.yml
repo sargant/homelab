@@ -8,7 +8,7 @@
       - --
       - sh
       - -c
-      - cat /etc/ssh/ssh_host_*_key.pub
+      - "awk '{print $1, $2}' /etc/ssh/ssh_host_*_key.pub | sort -u"
   delegate_to: localhost
   register: target_ssh_host_keys
   changed_when: false
@@ -19,37 +19,21 @@
     - target_ssh_host_keys.stdout | trim | length > 0
 
 - name: Read currently trusted SSH host keys
-  ansible.builtin.command:
-    argv:
-      - ssh-keygen
-      - -F
-      - "{{ hostvars[inventory_hostname].ansible_host }}"
-      - -f
-      - /root/.ssh/known_hosts
+  ansible.builtin.shell: |
+    ssh-keygen -F "{{ hostvars[inventory_hostname].ansible_host }}" \
+      -f /root/.ssh/known_hosts 2>/dev/null |
+      awk '!/^#/ {print $2, $3}' |
+      sort -u
+  args:
+    executable: /bin/bash
   delegate_to: localhost
   register: trusted_ssh_host_keys
   changed_when: false
-  failed_when: false
 
 - name: Compare trusted SSH host keys
   ansible.builtin.set_fact:
-    trusted_ssh_host_key_material: >-
-      {{
-        trusted_ssh_host_keys.stdout_lines
-        | reject('match', '^#')
-        | map('regex_replace', '^\\S+\\s+(\\S+\\s+\\S+).*$', '\\1')
-        | unique
-        | sort
-        | list
-      }}
-    target_ssh_host_key_material: >-
-      {{
-        target_ssh_host_keys.stdout_lines
-        | map('regex_replace', '^(\\S+\\s+\\S+).*$', '\\1')
-        | unique
-        | sort
-        | list
-      }}
+    trusted_ssh_host_key_material: "{{ trusted_ssh_host_keys.stdout_lines }}"
+    target_ssh_host_key_material: "{{ target_ssh_host_keys.stdout_lines }}"
 
 - name: Remove stale SSH host keys
   ansible.builtin.known_hosts:
