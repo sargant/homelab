@@ -21,6 +21,6 @@ all:
       proxmox_ctid: 1041
 
     paperless:
-      ansible_host: paperless.home.arpa
-      system_hostname: paperless
-      proxmox_vmid: 1044
+      ansible_host: paperless-temp.home.arpa
+      system_hostname: paperless-temp
+      proxmox_vmid: 1099
