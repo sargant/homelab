@@ -8,6 +8,8 @@
     paperless_backup_mount: /mnt/backup
     paperless_install_path: /opt/paperless
     paperless_consume_path: "{{ paperless_install_path }}/consume"
+    paperless_secrets_path: "{{ paperless_install_path }}/secrets"
+    paperless_secret_key_path: "{{ paperless_secrets_path }}/paperless_secret_key"
 
   pre_tasks:
     - name: Trust SSH host key
@@ -45,6 +47,33 @@
         owner: "1000"
         group: "1000"
         mode: "0777"
+
+    - name: Create Paperless secrets directory
+      ansible.builtin.file:
+        path: "{{ paperless_secrets_path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Generate Paperless secret key
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - >-
+            import pathlib, secrets, sys;
+            pathlib.Path(sys.argv[1]).write_text(secrets.token_urlsafe(64) + "\n")
+          - "{{ paperless_secret_key_path }}"
+        creates: "{{ paperless_secret_key_path }}"
+
+    - name: Secure Paperless secret key
+      ansible.builtin.file:
+        path: "{{ paperless_secret_key_path }}"
+        state: file
+        owner: root
+        group: root
+        mode: "0600"
 
     - name: Install Paperless Compose definition
       ansible.builtin.copy:
