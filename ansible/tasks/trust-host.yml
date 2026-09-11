@@ -28,6 +28,22 @@
     - target_lxc_ssh_host_keys.stdout | trim | length > 0
   when: proxmox_ctid is defined
 
+- name: Wait for QEMU guest agent
+  ansible.builtin.command:
+    argv:
+      - qm
+      - guest
+      - cmd
+      - "{{ proxmox_vmid | string }}"
+      - ping
+  delegate_to: localhost
+  register: qemu_guest_agent
+  changed_when: false
+  retries: 30
+  delay: 2
+  until: qemu_guest_agent.rc == 0
+  when: proxmox_vmid is defined
+
 - name: Read target SSH host keys from Proxmox VM
   ansible.builtin.command:
     argv:
@@ -42,14 +58,21 @@
   delegate_to: localhost
   register: target_vm_ssh_host_keys
   changed_when: false
-  retries: 30
-  delay: 2
-  until: >-
-    target_vm_ssh_host_keys.rc == 0
-    and (target_vm_ssh_host_keys.stdout | trim | length > 0)
-    and ((target_vm_ssh_host_keys.stdout | from_json).exited | default(0)) == 1
-    and ((target_vm_ssh_host_keys.stdout | from_json).exitcode | default(1)) == 0
-    and (((target_vm_ssh_host_keys.stdout | from_json)['out-data'] | default('') | trim | length) > 0)
+  when: proxmox_vmid is defined
+
+- name: Parse VM guest-agent response
+  ansible.builtin.set_fact:
+    target_vm_ssh_host_key_result: "{{ target_vm_ssh_host_keys.stdout | from_json }}"
+  when: proxmox_vmid is defined
+
+- name: Check VM host-key command
+  ansible.builtin.assert:
+    that:
+      - target_vm_ssh_host_key_result.exited | default(0) == 1
+      - target_vm_ssh_host_key_result.exitcode | default(1) == 0
+      - target_vm_ssh_host_key_result['out-data'] | default('') | trim | length > 0
+    fail_msg: >-
+      Failed to read SSH host keys from Proxmox VM {{ proxmox_vmid }}.
   when: proxmox_vmid is defined
 
 - name: Normalize target SSH host keys
@@ -59,7 +82,7 @@
         target_lxc_ssh_host_keys.stdout_lines
         if proxmox_ctid is defined
         else (
-          (target_vm_ssh_host_keys.stdout | from_json)['out-data']
+          target_vm_ssh_host_key_result['out-data']
           | trim
         ).split('\n')
       }}
