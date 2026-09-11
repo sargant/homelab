@@ -1,6 +1,6 @@
 # Configure vm-host itself.
 vm-host:
-    ansible-playbook -i localhost, vm-host.yml
+    ansible-playbook -i inventory.yml vm-host.yml
 
 # Configure the print server.
 print-server:
