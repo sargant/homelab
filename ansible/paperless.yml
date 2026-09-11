@@ -81,7 +81,6 @@
     - name: Install Paperless host packages
       ansible.builtin.apt:
         name:
-          - openssl
           - samba
         state: present
 
@@ -110,17 +109,13 @@
         mode: "0700"
 
     - name: Generate Paperless secret key
-      ansible.builtin.shell: |
-        set -euo pipefail
-        temp_file="$(mktemp {{ paperless_secrets_path | quote }}/paperless_secret_key.XXXXXX)"
-        trap 'rm -f "$temp_file"' EXIT
-        openssl rand -hex 32 | tr -d '\n' > "$temp_file"
-        test "$(wc -c < "$temp_file")" -eq 64
-        chmod 0600 "$temp_file"
-        mv "$temp_file" {{ paperless_secret_key_path | quote }}
-        trap - EXIT
-      args:
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - >-
+            import secrets, pathlib;
+            pathlib.Path({{ paperless_secret_key_path | to_json }}).write_text(secrets.token_hex(32))
         creates: "{{ paperless_secret_key_path }}"
 
     - name: Read Paperless secret key metadata
