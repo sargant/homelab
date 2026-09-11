@@ -96,7 +96,7 @@
       - -N
       - ""
       - -C
-      - vm-management
+      - vm-management@vm-host
       - -f
       - /root/.ssh/vm-management
   when: not vm_management_private_key.stat.exists
