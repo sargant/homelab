@@ -117,6 +117,80 @@
         group: root
         mode: "0644"
 
+    - name: Validate Paperless Compose definition
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - config
+          - --quiet
+      args:
+        chdir: "{{ paperless_install_path }}"
+      changed_when: false
+
+    - name: Pull Paperless images
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - pull
+      args:
+        chdir: "{{ paperless_install_path }}"
+      changed_when: false
+
+    - name: Start Paperless
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - up
+          - -d
+      args:
+        chdir: "{{ paperless_install_path }}"
+      register: paperless_compose_up
+      changed_when: >-
+        'Created' in paperless_compose_up.stdout or
+        'Created' in paperless_compose_up.stderr or
+        'Recreated' in paperless_compose_up.stdout or
+        'Recreated' in paperless_compose_up.stderr or
+        'Started' in paperless_compose_up.stdout or
+        'Started' in paperless_compose_up.stderr
+
+    - name: Read running Paperless services
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - ps
+          - --status
+          - running
+          - --services
+      args:
+        chdir: "{{ paperless_install_path }}"
+      register: paperless_running_services
+      changed_when: false
+
+    - name: Check Paperless services
+      ansible.builtin.assert:
+        that:
+          - paperless_running_services.stdout_lines | sort == ['broker', 'db', 'webserver'] | sort
+        fail_msg: >-
+          Expected broker, db, and webserver to be running; found
+          {{ paperless_running_services.stdout_lines | join(', ') }}.
+
+    - name: Wait for Paperless HTTP response
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        method: GET
+        follow_redirects: none
+        status_code:
+          - 200
+          - 302
+      register: paperless_http_check
+      retries: 30
+      delay: 2
+      until: paperless_http_check.status in [200, 302]
+
     - name: Configure Paperless Samba inbox
       ansible.builtin.template:
         src: files/paperless/smb.conf.j2
