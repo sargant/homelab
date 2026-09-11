@@ -17,9 +17,6 @@
   ansible.builtin.file:
     path: "{{ nfs_mountpoint }}"
     state: directory
-    owner: root
-    group: root
-    mode: "0755"
 
 - name: Read current NFS mount
   ansible.builtin.command:
