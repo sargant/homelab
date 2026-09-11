@@ -4,8 +4,6 @@
   gather_facts: false
 
   vars:
-    print_server_hostname: print-server
-    print_server_host: print-server.home.arpa
     printer_host: printer.home.arpa
     printer_queue: Brother_HL_1212W
     printer_name: Brother HL-1212W
@@ -29,9 +27,9 @@
     - name: Check hostname
       ansible.builtin.assert:
         that:
-          - ansible_hostname == print_server_hostname
+          - ansible_hostname == system_hostname
         fail_msg: >-
-          Expected host {{ print_server_hostname }}, found {{ ansible_hostname }}.
+          Expected host {{ system_hostname }}, found {{ ansible_hostname }}.
 
   tasks:
     - name: Install print server packages
@@ -70,7 +68,7 @@
 
     - name: Resolve print server DNS
       ansible.builtin.command:
-        argv: [getent, hosts, "{{ print_server_host }}"]
+        argv: [getent, hosts, "{{ ansible_host }}"]
       changed_when: false
 
     - name: Resolve physical printer DNS
@@ -126,7 +124,7 @@
       ansible.builtin.lineinfile:
         path: /etc/cups/cupsd.conf
         regexp: '^\s*ServerAlias\s+'
-        line: "ServerAlias {{ print_server_host }}"
+        line: "ServerAlias {{ ansible_host }}"
         insertafter: EOF
       notify: Restart CUPS
 
@@ -303,7 +301,7 @@
     - name: Wait for AirPrint advertisements
       ansible.builtin.shell: |
         set -euo pipefail
-        service="{{ printer_name }} @ {{ print_server_hostname }}"
+        service="{{ printer_name }} @ {{ system_hostname }}"
 
         ipp_services="$(
           timeout 2s avahi-browse -t _ipp._tcp 2>/dev/null || true
