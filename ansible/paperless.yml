@@ -3,6 +3,11 @@
   hosts: paperless
   gather_facts: false
 
+  vars:
+    paperless_backup_source: nas.home.arpa:/volume1/backup/paperless
+    paperless_backup_mount: /mnt/backup
+    paperless_consume_path: /opt/paperless/consume
+
   pre_tasks:
     - name: Trust SSH host key
       ansible.builtin.import_tasks: tasks/trust-host.yml
@@ -20,3 +25,145 @@
   tasks:
     - name: Install Docker
       ansible.builtin.import_tasks: tasks/install-docker.yml
+
+    - name: Install Paperless storage services
+      ansible.builtin.apt:
+        name:
+          - nfs-common
+          - samba
+        state: present
+
+    - name: Create Paperless storage directories
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - path: "{{ paperless_backup_mount }}"
+          owner: root
+          group: root
+          mode: "0755"
+        - path: "{{ paperless_consume_path }}"
+          owner: "1000"
+          group: "1000"
+          mode: "0777"
+
+    - name: Configure Paperless backup NFS mount
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '^nas\.home\.arpa:/volume1/backup/paperless\s+/mnt/backup\s+'
+        line: >-
+          {{ paperless_backup_source }} {{ paperless_backup_mount }}
+          nfs4 defaults,_netdev 0 0
+        state: present
+
+    - name: Read current Paperless backup mount
+      ansible.builtin.command:
+        argv:
+          - findmnt
+          - -n
+          - -o
+          - SOURCE
+          - "{{ paperless_backup_mount }}"
+      register: paperless_backup_current_mount
+      changed_when: false
+      failed_when: false
+
+    - name: Reject unexpected Paperless backup mount
+      ansible.builtin.assert:
+        that:
+          - paperless_backup_current_mount.rc != 0 or
+            paperless_backup_current_mount.stdout | trim == paperless_backup_source
+        fail_msg: >-
+          {{ paperless_backup_mount }} is mounted from
+          {{ paperless_backup_current_mount.stdout | trim }}, expected
+          {{ paperless_backup_source }}.
+
+    - name: Mount Paperless backup storage
+      ansible.builtin.command:
+        argv:
+          - mount
+          - "{{ paperless_backup_mount }}"
+      when: paperless_backup_current_mount.rc != 0
+      changed_when: true
+
+    - name: Verify Paperless backup NFS mount
+      ansible.builtin.command:
+        argv:
+          - findmnt
+          - -n
+          - -t
+          - nfs4
+          - -o
+          - SOURCE
+          - "{{ paperless_backup_mount }}"
+      register: paperless_backup_mount_check
+      changed_when: false
+
+    - name: Check Paperless backup NFS source
+      ansible.builtin.assert:
+        that:
+          - paperless_backup_mount_check.stdout | trim == paperless_backup_source
+        fail_msg: >-
+          {{ paperless_backup_mount }} is not mounted from
+          {{ paperless_backup_source }}.
+
+    - name: Configure Paperless Samba inbox
+      ansible.builtin.copy:
+        dest: /etc/samba/smb.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [global]
+              map to guest = Bad User
+              hosts allow = 192.168.37.0/24 127.0.0.0/8
+              hosts deny = 0.0.0.0/0
+
+          [paperless-inbox]
+              path = {{ paperless_consume_path }}
+              read only = no
+              guest ok = yes
+              create mask = 0666
+              directory mask = 0777
+      notify: Restart Samba
+
+    - name: Validate Samba configuration
+      ansible.builtin.command:
+        argv:
+          - testparm
+          - -s
+      register: paperless_samba_config_check
+      changed_when: false
+
+    - name: Enable and start Samba
+      ansible.builtin.service:
+        name: smbd
+        enabled: true
+        state: started
+
+    - name: Apply Samba configuration
+      ansible.builtin.meta: flush_handlers
+
+    - name: Verify Samba is running
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - smbd
+      register: paperless_samba_service_check
+      changed_when: false
+
+    - name: Check Samba service
+      ansible.builtin.assert:
+        that:
+          - paperless_samba_service_check.stdout | trim == 'active'
+        fail_msg: Samba is not active.
+
+  handlers:
+    - name: Restart Samba
+      ansible.builtin.service:
+        name: smbd
+        state: restarted
