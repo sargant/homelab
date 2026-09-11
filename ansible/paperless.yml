@@ -36,6 +36,34 @@
         nfs_source: "{{ paperless_backup_source }}"
         nfs_mountpoint: "{{ paperless_backup_mount }}"
 
+    - name: Configure Paperless kernel settings
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-paperless.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          vm.overcommit_memory = 1
+      notify: Apply Paperless sysctl
+
+    - name: Apply Paperless kernel settings
+      ansible.builtin.meta: flush_handlers
+
+    - name: Read memory overcommit setting
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - -n
+          - vm.overcommit_memory
+      register: paperless_overcommit_memory
+      changed_when: false
+
+    - name: Check memory overcommit setting
+      ansible.builtin.assert:
+        that:
+          - paperless_overcommit_memory.stdout | trim == '1'
+        fail_msg: vm.overcommit_memory is not set to 1.
+
     - name: Install Paperless host packages
       ansible.builtin.apt:
         name:
@@ -69,7 +97,7 @@
 
     - name: Generate Paperless secret key
       ansible.builtin.shell: >-
-        umask 077 && openssl rand -hex 32 > {{ paperless_secret_key_path | quote }}
+        umask 077 && openssl rand -hex 32 | tr -d '\n' > {{ paperless_secret_key_path | quote }}
       args:
         creates: "{{ paperless_secret_key_path }}"
 
@@ -131,6 +159,13 @@
         fail_msg: Samba is not active.
 
   handlers:
+    - name: Apply Paperless sysctl
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - --system
+      changed_when: true
+
     - name: Restart Samba
       ansible.builtin.service:
         name: smbd
