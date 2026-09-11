@@ -53,7 +53,7 @@
     - name: Configure Paperless backup NFS mount
       ansible.builtin.lineinfile:
         path: /etc/fstab
-        regexp: '^nas\.home\.arpa:/volume1/backup/paperless\s+/mnt/backup\s+'
+        regexp: '^\S+\s+/mnt/backup\s+'
         line: >-
           {{ paperless_backup_source }} {{ paperless_backup_mount }}
           nfs4 defaults,_netdev 0 0
