@@ -54,4 +54,6 @@
     state: present
   delegate_to: localhost
   loop: "{{ target_ssh_host_key_material }}"
+  loop_control:
+    label: "{{ item.split()[0] }}"
   when: trusted_ssh_host_key_material != target_ssh_host_key_material
