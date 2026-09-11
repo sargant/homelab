@@ -12,7 +12,7 @@ all:
 
     nas:
       ansible_host: nas.home.arpa
-      ansible_host_ip: 192.168.37.10
+      ip_address: 192.168.37.10
 
     tailscale:
       ansible_host: tailscale.home.arpa
