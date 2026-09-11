@@ -33,7 +33,7 @@ resource "proxmox_virtual_environment_file" "paperless_cloud_init" {
           lock_passwd: true
           shell: /bin/bash
           ssh_authorized_keys:
-            - ${trimspace(file("/root/.ssh/ansible.pub"))}
+            - ${trimspace(file("/root/.ssh/vm-management.pub"))}
 
       package_update: true
       packages:
