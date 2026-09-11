@@ -1,5 +1,14 @@
 ---
-- name: Read target SSH host keys from Proxmox
+- name: Check Proxmox guest identifier
+  ansible.builtin.assert:
+    that:
+      - (proxmox_ctid is defined) or (proxmox_vmid is defined)
+      - not ((proxmox_ctid is defined) and (proxmox_vmid is defined))
+    fail_msg: >-
+      Expected exactly one of proxmox_ctid or proxmox_vmid for
+      {{ inventory_hostname }}.
+
+- name: Read target SSH host keys from Proxmox LXC
   ansible.builtin.command:
     argv:
       - pct
@@ -10,30 +19,100 @@
       - -c
       - "awk '{print $1, $2}' /etc/ssh/ssh_host_*_key.pub | sort -u"
   delegate_to: localhost
-  register: target_ssh_host_keys
+  register: target_lxc_ssh_host_keys
   changed_when: false
   retries: 10
   delay: 1
   until:
-    - target_ssh_host_keys.rc == 0
-    - target_ssh_host_keys.stdout | trim | length > 0
+    - target_lxc_ssh_host_keys.rc == 0
+    - target_lxc_ssh_host_keys.stdout | trim | length > 0
+  when: proxmox_ctid is defined
+
+- name: Wait for QEMU guest agent
+  ansible.builtin.command:
+    argv:
+      - qm
+      - guest
+      - cmd
+      - "{{ proxmox_vmid | string }}"
+      - ping
+  delegate_to: localhost
+  register: qemu_guest_agent
+  changed_when: false
+  retries: 30
+  delay: 2
+  until: qemu_guest_agent.rc == 0
+  when: proxmox_vmid is defined
+
+- name: Read target SSH host keys from Proxmox VM
+  ansible.builtin.command:
+    argv:
+      - qm
+      - guest
+      - exec
+      - "{{ proxmox_vmid | string }}"
+      - --
+      - sh
+      - -c
+      - "awk '{print $1, $2}' /etc/ssh/ssh_host_*_key.pub | sort -u"
+  delegate_to: localhost
+  register: target_vm_ssh_host_keys
+  changed_when: false
+  when: proxmox_vmid is defined
+
+- name: Parse VM guest-agent response
+  ansible.builtin.set_fact:
+    target_vm_ssh_host_key_result: "{{ target_vm_ssh_host_keys.stdout | from_json }}"
+  when: proxmox_vmid is defined
+
+- name: Check VM host-key command
+  ansible.builtin.assert:
+    that:
+      - target_vm_ssh_host_key_result.exited | default(0) == 1
+      - target_vm_ssh_host_key_result.exitcode | default(1) == 0
+      - target_vm_ssh_host_key_result['out-data'] | default('') | trim | length > 0
+    fail_msg: >-
+      Failed to read SSH host keys from Proxmox VM {{ proxmox_vmid }}.
+  when: proxmox_vmid is defined
+
+- name: Normalize target SSH host keys
+  ansible.builtin.set_fact:
+    target_ssh_host_key_material: >-
+      {{
+        (
+          target_lxc_ssh_host_keys.stdout_lines
+          if proxmox_ctid is defined
+          else target_vm_ssh_host_key_result['out-data'].splitlines()
+        )
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | sort
+        | list
+      }}
 
 - name: Read currently trusted SSH host keys
   ansible.builtin.shell: |
     ssh-keygen -F "{{ hostvars[inventory_hostname].ansible_host }}" \
       -f /root/.ssh/known_hosts 2>/dev/null |
-      awk '!/^#/ {print $2, $3}' |
-      sort -u
+      awk '!/^#/ {print $2, $3}'
   args:
     executable: /bin/bash
   delegate_to: localhost
   register: trusted_ssh_host_keys
   changed_when: false
 
-- name: Compare trusted SSH host keys
+- name: Normalize trusted SSH host keys
   ansible.builtin.set_fact:
-    trusted_ssh_host_key_material: "{{ trusted_ssh_host_keys.stdout_lines }}"
-    target_ssh_host_key_material: "{{ target_ssh_host_keys.stdout_lines }}"
+    trusted_ssh_host_key_material: >-
+      {{
+        trusted_ssh_host_keys.stdout_lines
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | sort
+        | list
+      }}
 
 - name: Remove stale SSH host keys
   ansible.builtin.known_hosts:

@@ -3,6 +3,18 @@
   hosts: vm_host
   gather_facts: false
 
+  vars:
+    proxmox_storage_requirements:
+      - storage: local
+        content:
+          - vztmpl
+          - import
+          - snippets
+      - storage: local-lvm
+        content:
+          - rootdir
+          - images
+
   tasks:
     - name: Bootstrap Debian host
       ansible.builtin.import_tasks: tasks/bootstrap-debian.yml
@@ -12,6 +24,36 @@
         argv:
           - pveversion
       changed_when: false
+
+    - name: Check required Proxmox storage content types
+      ansible.builtin.command:
+        argv:
+          - pvesm
+          - status
+          - --storage
+          - "{{ item.0.storage }}"
+          - --content
+          - "{{ item.1 }}"
+          - --enabled
+          - "1"
+          - --output-format
+          - json
+      loop: "{{ proxmox_storage_requirements | subelements('content') }}"
+      loop_control:
+        label: "{{ item.0.storage }} supports {{ item.1 }}"
+      register: proxmox_storage_checks
+      changed_when: false
+
+    - name: Verify required Proxmox storage content types
+      ansible.builtin.assert:
+        that:
+          - (item.stdout | from_json | length) > 0
+        fail_msg: >-
+          Proxmox storage {{ item.item.0.storage }} must be enabled and support
+          content type {{ item.item.1 }}.
+      loop: "{{ proxmox_storage_checks.results }}"
+      loop_control:
+        label: "{{ item.item.0.storage }} supports {{ item.item.1 }}"
 
     - name: Install management prerequisites
       ansible.builtin.apt:

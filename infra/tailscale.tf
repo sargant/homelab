@@ -1,8 +1,8 @@
 resource "unifi_client" "tailscale" {
-  mac              = "02:EE:88:40:BC:33"
+  mac              = local.hosts.tailscale.mac
   name             = "Tailscale Gateway"
-  fixed_ip         = "192.168.37.21"
-  local_dns_record = "tailscale.home.arpa"
+  fixed_ip         = local.hosts.tailscale.ip
+  local_dns_record = local.hosts.tailscale.dns
 }
 
 resource "time_sleep" "tailscale_dhcp" {
@@ -67,7 +67,7 @@ resource "proxmox_virtual_environment_container" "tailscale" {
     name        = "eth0"
     bridge      = "vmbr0"
     firewall    = true
-    mac_address = "02:EE:88:40:BC:33"
+    mac_address = local.hosts.tailscale.mac
   }
 
   operating_system {

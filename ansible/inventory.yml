@@ -19,3 +19,8 @@ all:
       ansible_host: print-server.home.arpa
       system_hostname: print-server
       proxmox_ctid: 1041
+
+    paperless:
+      ansible_host: paperless-temp.home.arpa
+      system_hostname: paperless-temp
+      proxmox_vmid: 1099
