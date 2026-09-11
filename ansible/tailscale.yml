@@ -4,12 +4,16 @@
   gather_facts: false
 
   vars:
+    proxmox_ctid: 1021
     tailscale_hostname: tailscale
     tailscale_subnet_route: 192.168.37.0/24
     tailscale_lan_interface: eth0
     tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_AUTH_KEY') }}"
 
   pre_tasks:
+    - name: Trust SSH host key
+      ansible.builtin.import_tasks: tasks/trust-host.yml
+
     - name: Bootstrap Debian
       ansible.builtin.import_tasks: tasks/bootstrap-debian.yml
 
