@@ -1,3 +1,3 @@
-# Homelab bootstrap
+# homelab
 
-Infrastructure and configuration for the homelab.
+Bootstrapping, scripts and other assorted bits and bobs for my homelab.
