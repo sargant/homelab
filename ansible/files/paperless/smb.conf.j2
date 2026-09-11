@@ -1,6 +1,6 @@
 [global]
     map to guest = Bad User
-    hosts allow = 192.168.37.0/24 127.0.0.0/8
+    hosts allow = {{ lan_subnet }} 127.0.0.0/8
     hosts deny = 0.0.0.0/0
 
 [paperless-inbox]
