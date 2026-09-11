@@ -109,6 +109,47 @@
         group: root
         mode: "0600"
 
+    - name: Configure Paperless Samba inbox
+      ansible.builtin.template:
+        src: files/paperless/smb.conf.j2
+        dest: /etc/samba/smb.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Samba
+
+    - name: Validate Samba configuration
+      ansible.builtin.command:
+        argv:
+          - testparm
+          - -s
+      register: paperless_samba_config_check
+      changed_when: false
+
+    - name: Enable and start Samba
+      ansible.builtin.service:
+        name: smbd
+        enabled: true
+        state: started
+
+    - name: Apply Samba configuration
+      ansible.builtin.meta: flush_handlers
+
+    - name: Verify Samba is running
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - smbd
+      register: paperless_samba_service_check
+      changed_when: false
+
+    - name: Check Samba service
+      ansible.builtin.assert:
+        that:
+          - paperless_samba_service_check.stdout | trim == 'active'
+        fail_msg: Samba is not active.
+
     - name: Install Paperless Compose definition
       ansible.builtin.copy:
         src: files/paperless/compose.yml
@@ -190,47 +231,6 @@
       retries: 30
       delay: 2
       until: paperless_http_check.status in [200, 302]
-
-    - name: Configure Paperless Samba inbox
-      ansible.builtin.template:
-        src: files/paperless/smb.conf.j2
-        dest: /etc/samba/smb.conf
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Restart Samba
-
-    - name: Validate Samba configuration
-      ansible.builtin.command:
-        argv:
-          - testparm
-          - -s
-      register: paperless_samba_config_check
-      changed_when: false
-
-    - name: Enable and start Samba
-      ansible.builtin.service:
-        name: smbd
-        enabled: true
-        state: started
-
-    - name: Apply Samba configuration
-      ansible.builtin.meta: flush_handlers
-
-    - name: Verify Samba is running
-      ansible.builtin.command:
-        argv:
-          - systemctl
-          - is-active
-          - smbd
-      register: paperless_samba_service_check
-      changed_when: false
-
-    - name: Check Samba service
-      ansible.builtin.assert:
-        that:
-          - paperless_samba_service_check.stdout | trim == 'active'
-        fail_msg: Samba is not active.
 
   handlers:
     - name: Apply Paperless sysctl
