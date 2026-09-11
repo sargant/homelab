@@ -22,3 +22,8 @@ print-server:
 tailscale:
   tofu -chdir=infra plan -target=proxmox_virtual_environment_container.tailscale -detailed-exitcode -compact-warnings
   ansible-playbook -i ansible/inventory.yml ansible/tailscale.yml
+
+# Configure the Paperless host after verifying its infrastructure is converged.
+paperless:
+  tofu -chdir=infra plan -target=proxmox_virtual_environment_vm.paperless -detailed-exitcode -compact-warnings
+  ansible-playbook -i ansible/inventory.yml ansible/paperless.yml
