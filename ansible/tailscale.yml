@@ -4,12 +4,14 @@
   gather_facts: false
 
   vars:
-    tailscale_hostname: tailscale
     tailscale_subnet_route: 192.168.37.0/24
     tailscale_lan_interface: eth0
     tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_AUTH_KEY') }}"
 
   pre_tasks:
+    - name: Trust SSH host key
+      ansible.builtin.import_tasks: tasks/trust-host.yml
+
     - name: Bootstrap Debian
       ansible.builtin.import_tasks: tasks/bootstrap-debian.yml
 
@@ -183,7 +185,7 @@
         fail_msg: |
           ACTION REQUIRED: this machine is waiting for Tailscale device approval.
 
-          In the Tailscale admin console, approve the pending {{ tailscale_hostname }} machine,
+          In the Tailscale admin console, approve the pending {{ system_hostname }} machine,
           then rerun this playbook.
 
     - name: Require auth key when Tailscale needs login
@@ -199,7 +201,7 @@
       ansible.builtin.shell: >-
         tailscale up
         --auth-key="$TS_AUTH_KEY"
-        --hostname="{{ tailscale_hostname }}"
+        --hostname="{{ system_hostname }}"
         --advertise-routes="{{ tailscale_subnet_route }}"
         --advertise-exit-node
       environment:
@@ -229,7 +231,7 @@
         fail_msg: |
           ACTION REQUIRED: this machine joined the tailnet but is waiting for Tailscale device approval.
 
-          In the Tailscale admin console, approve the pending {{ tailscale_hostname }} machine,
+          In the Tailscale admin console, approve the pending {{ system_hostname }} machine,
           then rerun this playbook.
       when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
 
@@ -245,7 +247,7 @@
         argv:
           - tailscale
           - set
-          - "--hostname={{ tailscale_hostname }}"
+          - "--hostname={{ system_hostname }}"
           - "--advertise-routes={{ tailscale_subnet_route }}"
           - --advertise-exit-node
       changed_when: false
@@ -367,7 +369,7 @@
           ACTION REQUIRED: the Tailscale subnet route is advertised but is not approved.
 
           In the Tailscale admin console:
-            Machines -> {{ tailscale_hostname }} -> Edit route settings
+            Machines -> {{ system_hostname }} -> Edit route settings
             -> approve {{ tailscale_subnet_route }}
 
           Then rerun this playbook.
@@ -390,7 +392,7 @@
           but the exit node has not been approved.
 
           In the Tailscale admin console:
-            Machines -> {{ tailscale_hostname }} -> Edit route settings
+            Machines -> {{ system_hostname }} -> Edit route settings
             -> approve the exit node
 
           Then rerun this playbook.
@@ -402,4 +404,4 @@
           - "Advertised subnet: {{ tailscale_subnet_route }}"
           - "Subnet route: approved"
           - "Exit node: approved"
-          - "Web console: http://tailscale.home.arpa/"
+          - "Web console: http://{{ ansible_host }}/"
