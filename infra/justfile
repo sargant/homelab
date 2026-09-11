@@ -1,7 +1,0 @@
-# Preview infrastructure changes.
-plan:
-    tofu plan
-
-# Apply infrastructure changes.
-apply:
-    tofu apply
