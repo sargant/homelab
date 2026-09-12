@@ -1,0 +1,27 @@
+---
+- name: Trust Proxmox guest SSH host keys
+  hosts: proxmox_guests
+  gather_facts: false
+
+  tasks:
+    - name: Trust SSH host key
+      ansible.builtin.import_tasks: tasks/trust-host.yml
+
+- name: Apply Debian baseline
+  hosts: debian
+  gather_facts: false
+
+  roles:
+    - debian_base
+
+- name: Configure Proxmox management host
+  ansible.builtin.import_playbook: vm-host.yml
+
+- name: Configure Tailscale router
+  ansible.builtin.import_playbook: tailscale.yml
+
+- name: Configure print server
+  ansible.builtin.import_playbook: print-server.yml
+
+- name: Configure Paperless host
+  ansible.builtin.import_playbook: paperless.yml
