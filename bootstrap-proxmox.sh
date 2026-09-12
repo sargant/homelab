@@ -15,7 +15,7 @@ fi
 apt-get update
 apt-get install -y python3 pipx just
 
-if ! pipx list --global --short 2>/dev/null | grep -qx 'ansible'; then
+if ! pipx list --global --short 2>/dev/null | grep -q '^ansible '; then
   pipx install --global --include-deps ansible
 fi
 
