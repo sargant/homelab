@@ -1,7 +1,6 @@
 ---
 - name: Initialize Proxmox management host
   hosts: vm_host
-  gather_facts: false
 
   vars:
     proxmox_storage_requirements:
@@ -16,9 +15,6 @@
           - images
 
   tasks:
-    - name: Bootstrap Debian host
-      ansible.builtin.import_tasks: tasks/bootstrap-debian.yml
-
     - name: Check Proxmox VE
       ansible.builtin.command:
         argv:
@@ -58,7 +54,8 @@
     - name: Install management prerequisites
       ansible.builtin.apt:
         name:
-          - ansible-core
+          - python3
+          - pipx
           - just
           - openssh-client
         state: present
