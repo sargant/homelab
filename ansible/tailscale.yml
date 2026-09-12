@@ -1,7 +1,6 @@
 ---
 - name: Configure Tailscale subnet router
   hosts: tailscale
-  gather_facts: false
 
   vars:
     tailscale_subnet_route: 192.168.37.0/24
@@ -9,12 +8,6 @@
     tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_AUTH_KEY') }}"
 
   pre_tasks:
-    - name: Trust SSH host key
-      ansible.builtin.import_tasks: tasks/trust-host.yml
-
-    - name: Bootstrap Debian
-      ansible.builtin.import_tasks: tasks/bootstrap-debian.yml
-
     - name: Check TUN device
       ansible.builtin.stat:
         path: /dev/net/tun
