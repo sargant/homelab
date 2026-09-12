@@ -13,7 +13,11 @@ if ! command -v pveversion >/dev/null 2>&1; then
 fi
 
 apt-get update
-apt-get install -y ansible-core just
+apt-get install -y python3 pipx just
+
+if ! pipx list --global | grep -q 'package ansible '; then
+  pipx install --global --include-deps ansible
+fi
 
 just --version >/dev/null
 ansible-playbook --version >/dev/null
