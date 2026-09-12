@@ -1,7 +1,6 @@
 ---
 - name: Configure Paperless host
   hosts: paperless
-  gather_facts: false
 
   vars:
     paperless_backup_source: "{{ hostvars['nas'].ansible_host }}:/volume1/backup/paperless"
@@ -13,12 +12,6 @@
     paperless_secret_key_path: "{{ paperless_secrets_path }}/paperless_secret_key"
 
   pre_tasks:
-    - name: Trust SSH host key
-      ansible.builtin.import_tasks: tasks/trust-host.yml
-
-    - name: Bootstrap Debian
-      ansible.builtin.import_tasks: tasks/bootstrap-debian.yml
-
     - name: Check hostname
       ansible.builtin.assert:
         that:
