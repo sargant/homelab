@@ -1,0 +1,161 @@
+---
+- name: Bootstrap Python
+  ansible.builtin.raw: |
+    if [ ! -x /usr/bin/python3 ]; then
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y python3
+      echo __ANSIBLE_CHANGED__
+    fi
+  register: python_bootstrap
+  changed_when: "'__ANSIBLE_CHANGED__' in python_bootstrap.stdout"
+
+- name: Gather facts
+  ansible.builtin.setup:
+
+- name: Check operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == "Debian"
+      - ansible_facts.distribution_major_version == "13"
+    fail_msg: >-
+      Expected Debian 13, found
+      {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}.
+
+- name: Ensure root SSH directory exists
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Fetch GitHub SSH keys
+  ansible.builtin.uri:
+    url: "https://github.com/{{ github_ssh_user }}.keys"
+    return_content: true
+    status_code: 200
+  register: github_ssh_keys
+  changed_when: false
+
+- name: Require at least one GitHub SSH key
+  ansible.builtin.assert:
+    that:
+      - github_ssh_keys.content | trim | length > 0
+    fail_msg: "GitHub returned no SSH keys for {{ github_ssh_user }}."
+
+- name: Trust GitHub SSH keys for root
+  ansible.builtin.blockinfile:
+    path: /root/.ssh/authorized_keys
+    create: true
+    owner: root
+    group: root
+    mode: "0600"
+    marker: "# {mark} ANSIBLE MANAGED GITHUB SSH KEYS"
+    block: "{{ github_ssh_keys.content | trim }}"
+
+- name: Enforce SSH key-only authentication
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-key-only.conf
+    mode: "0644"
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin prohibit-password
+  register: ssh_key_only_config
+
+- name: Remove legacy late SSH policy drop-in
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d/99-key-only.conf
+    state: absent
+  register: ssh_legacy_key_only_config
+
+- name: Validate SSH configuration
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/sshd
+      - -t
+  changed_when: false
+
+- name: Restart SSH after authentication policy change
+  ansible.builtin.systemd_service:
+    name: ssh
+    state: restarted
+  when: ssh_key_only_config.changed or ssh_legacy_key_only_config.changed
+
+- name: Read effective SSH authentication policy
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/sshd
+      - -T
+  register: ssh_effective_config
+  changed_when: false
+
+- name: Verify SSH key-only authentication
+  ansible.builtin.assert:
+    that:
+      - "ssh_effective_config.stdout is regex('(?m)^passwordauthentication no$')"
+      - "ssh_effective_config.stdout is regex('(?m)^kbdinteractiveauthentication no$')"
+      - "ssh_effective_config.stdout is regex('(?m)^permitrootlogin (prohibit-password|without-password)$')"
+    fail_msg: SSH is not enforcing the expected key-only authentication policy.
+
+- name: Install interactive shell support
+  ansible.builtin.apt:
+    name: bash-completion
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Suppress root login banner
+  ansible.builtin.file:
+    path: /root/.hushlogin
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+    modification_time: preserve
+    access_time: preserve
+
+- name: Configure homelab interactive shell
+  ansible.builtin.blockinfile:
+    path: /etc/bash.bashrc
+    marker: "# {mark} homelab prompt {mark}"
+    marker_begin: ">>>"
+    marker_end: "<<<"
+    block: |
+      _homelab_prompt() {
+        if (( EUID == 0 )); then
+          PS1='\n\[\e[38;5;114m\]\h\[\e[0m\]:\[\e[38;5;117m\]\w\[\e[0m\]\n\[\e[1;38;5;203m\]\u\[\e[0m\] \$ '
+        else
+          PS1='\n\[\e[38;5;114m\]\h\[\e[0m\]:\[\e[38;5;117m\]\w\[\e[0m\]\n\[\e[38;5;229m\]\u\[\e[0m\] \$ '
+        fi
+      }
+
+      if [[ $- == *i* ]]; then
+        shopt -s histappend
+        shopt -s checkwinsize
+
+        HISTCONTROL=ignoreboth:erasedups
+        HISTSIZE=5000
+        HISTFILESIZE=10000
+
+        if command -v dircolors >/dev/null 2>&1; then
+          eval "$(dircolors -b)"
+        fi
+
+        if [[ -r /usr/share/bash-completion/bash_completion ]]; then
+          . /usr/share/bash-completion/bash_completion
+        fi
+
+        alias ls='ls --color=auto'
+        alias ll='ls -alF --color=auto'
+        alias la='ls -A --color=auto'
+        alias grep='grep --color=auto'
+        alias diff='diff --color=auto'
+        alias ip='ip -color=auto'
+
+        if [[ -n ${PROMPT_COMMAND:-} ]]; then
+          PROMPT_COMMAND="_homelab_prompt;${PROMPT_COMMAND}"
+        else
+          PROMPT_COMMAND='_homelab_prompt'
+        fi
+      fi
