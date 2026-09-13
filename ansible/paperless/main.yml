@@ -5,7 +5,6 @@
 
   vars:
     paperless_install_path: /opt/paperless
-    paperless_export_path: "{{ paperless_install_path }}/export"
     paperless_backup_mountpoint: /mnt/backup
     paperless_borg_repository: "{{ paperless_backup_mountpoint }}/borg"
     paperless_secret_key_path: "{{ paperless_install_path }}/secrets/paperless_secret_key"
@@ -46,7 +45,7 @@
 
     - name: Create Paperless export directory
       ansible.builtin.file:
-        path: "{{ paperless_export_path }}"
+        path: "{{ paperless_install_path }}/export"
         state: directory
         owner: "1000"
         group: "1000"
