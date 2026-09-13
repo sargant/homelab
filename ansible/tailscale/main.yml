@@ -120,31 +120,20 @@
         enabled: true
         state: started
 
-    - name: Read initial Tailscale backend state
+    - name: Read initial Tailscale state
       ansible.builtin.shell: |
         set -o pipefail
-        tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"' || true
+        tailscale status --json 2>/dev/null | jq -r '(.BackendState // "Unknown") + ":" + ((.Self.Online // false) | tostring)' || true
       args:
         executable: /bin/bash
       register: tailscale_initial_status
-      changed_when: false
-
-    - name: Read initial Tailscale online state
-      ansible.builtin.shell: |
-        set -o pipefail
-        tailscale status --json 2>/dev/null | jq -r '.Self.Online // false' || true
-      args:
-        executable: /bin/bash
-      register: tailscale_initial_online
       changed_when: false
 
     - name: Restart stale Tailscale daemon
       ansible.builtin.systemd_service:
         name: tailscaled
         state: restarted
-      when:
-        - tailscale_initial_status.stdout | trim == "Running"
-        - tailscale_initial_online.stdout | trim != "true"
+      when: tailscale_initial_status.stdout | trim == "Running:false"
 
     - name: Wait for Tailscale backend state to settle
       ansible.builtin.shell: |
