@@ -68,13 +68,10 @@
         update_cache: true
 
     - name: Configure IP forwarding
-      ansible.builtin.copy:
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/99-tailscale.conf.j2"
         dest: /etc/sysctl.d/99-tailscale.conf
         mode: "0644"
-        content: |
-          net.ipv4.ip_forward = 1
-          net.ipv6.conf.all.forwarding = 1
-          net.ipv6.conf.{{ tailscale_lan_interface }}.accept_ra = 2
 
     - name: Apply IP forwarding settings
       ansible.builtin.command:
@@ -85,22 +82,10 @@
       changed_when: false
 
     - name: Configure UDP GRO service
-      ansible.builtin.copy:
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/tailscale-gro.service.j2"
         dest: /etc/systemd/system/tailscale-gro.service
         mode: "0644"
-        content: |
-          [Unit]
-          Description=Configure UDP GRO forwarding for Tailscale
-          After=network-online.target
-          Wants=network-online.target
-
-          [Service]
-          Type=oneshot
-          ExecStart=/usr/sbin/ethtool -K {{ tailscale_lan_interface }} rx-udp-gro-forwarding on rx-gro-list off
-          RemainAfterExit=yes
-
-          [Install]
-          WantedBy=multi-user.target
       register: tailscale_gro_unit
 
     - name: Reload systemd after configuring UDP GRO service
@@ -254,22 +239,9 @@
 
     - name: Configure Tailscale web console service
       ansible.builtin.copy:
+        src: "{{ playbook_dir }}/tailscale-web.service"
         dest: /etc/systemd/system/tailscale-web.service
         mode: "0644"
-        content: |
-          [Unit]
-          Description=Tailscale web console
-          After=tailscaled.service
-          Requires=tailscaled.service
-
-          [Service]
-          Type=simple
-          ExecStart=/usr/bin/tailscale web --listen=0.0.0.0:80
-          Restart=on-failure
-          RestartSec=5
-
-          [Install]
-          WantedBy=multi-user.target
       register: tailscale_web_unit
 
     - name: Reload systemd after configuring Tailscale web console
