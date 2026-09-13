@@ -59,8 +59,15 @@
           - cupsctl
           - --remote-any
           - --share-printers
-          - "ServerAlias={{ ansible_host }}"
       changed_when: false
+
+    - name: Configure CUPS server alias
+      ansible.builtin.lineinfile:
+        path: /etc/cups/cupsd.conf
+        regexp: '^\s*ServerAlias\s+'
+        line: "ServerAlias {{ ansible_host }}"
+        insertafter: EOF
+      notify: Restart CUPS
 
     - name: Install supply-level wrapper
       ansible.builtin.template:
