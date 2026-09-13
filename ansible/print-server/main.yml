@@ -115,16 +115,6 @@
           changed=1
         fi
 
-        if grep -q '^\*cupsSNMPSupplies:' "$ppd"; then
-          if ! grep -q '^\*cupsSNMPSupplies: False$' "$ppd"; then
-            sed -i 's/^\*cupsSNMPSupplies:.*/\*cupsSNMPSupplies: False/' "$ppd"
-            changed=1
-          fi
-        else
-          printf '*cupsSNMPSupplies: False\n' >> "$ppd"
-          changed=1
-        fi
-
         if ! grep -q '^\*NickName: "Brother HL-1200 series via CUPS"$' "$ppd"; then
           sed -i \
             's#^\*NickName: ".*"#*NickName: "Brother HL-1200 series via CUPS"#' \
