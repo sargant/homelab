@@ -74,7 +74,6 @@
         src: "{{ playbook_dir }}/rastertobrlaser-with-supplies.j2"
         dest: "{{ supply_wrapper }}"
         mode: "0755"
-      notify: Restart CUPS
 
     - name: Configure printer queue and PPD
       ansible.builtin.shell: |
