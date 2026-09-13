@@ -257,6 +257,7 @@
           - -4
       register: tailscale_ipv4
       changed_when: false
+      failed_when: tailscale_ipv4.stdout | trim | length == 0
 
     - name: Read UDP GRO settings
       ansible.builtin.command:
@@ -266,13 +267,9 @@
           - "{{ tailscale_lan_interface }}"
       register: tailscale_gro
       changed_when: false
-
-    - name: Verify router settings
-      ansible.builtin.assert:
-        that:
-          - tailscale_ipv4.stdout | trim | length > 0
-          - "tailscale_gro.stdout is regex('(?m)^rx-udp-gro-forwarding: on')"
-          - "tailscale_gro.stdout is regex('(?m)^rx-gro-list: off')"
+      failed_when: >-
+        'rx-udp-gro-forwarding: on' not in tailscale_gro.stdout
+        or 'rx-gro-list: off' not in tailscale_gro.stdout
 
     - name: Wait for web console
       ansible.builtin.wait_for:
