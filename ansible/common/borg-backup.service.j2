@@ -4,7 +4,7 @@ RequiresMountsFor={{ borg_repository }}
 
 [Service]
 Type=oneshot
-WorkingDirectory={{ borg_working_directory }}
-ExecStart=/usr/bin/borg create --stats {{ borg_repository }}::{now} {{ borg_source }}
+WorkingDirectory={{ borg_source | dirname }}
+ExecStart=/usr/bin/borg create --stats {{ borg_repository }}::{now} {{ borg_source | basename }}
 ExecStart=/usr/bin/borg prune --list --keep-last 3 --keep-daily 7 --keep-weekly 4 --keep-monthly 12 {{ borg_repository }}
 ExecStart=/usr/bin/borg compact {{ borg_repository }}
