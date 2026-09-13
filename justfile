@@ -1,10 +1,17 @@
-set default-list := true
 set dotenv-load
 set dotenv-required
+
+# Show available recipes by default.
+default:
+  @just --list
 
 # Initialize the Proxmox management host with Ansible.
 init:
   cd ansible && ansible-playbook vm-host/main.yml
+
+# Update all known hosts and services with Ansible.
+update:
+  cd ansible && ansible-playbook site.yml
 
 # Preview infrastructure changes.
 plan:
