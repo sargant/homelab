@@ -6,15 +6,10 @@
     update_cache: true
     cache_valid_time: 3600
 
-- name: Check Borg repository
-  ansible.builtin.command:
-    argv:
-      - borg
-      - info
-      - "{{ borg_repository }}"
-  register: borg_repository_check
-  changed_when: false
-  failed_when: false
+- name: Check Borg repository path
+  ansible.builtin.stat:
+    path: "{{ borg_repository }}"
+  register: borg_repository_path
 
 - name: Initialize Borg repository
   ansible.builtin.command:
@@ -23,7 +18,19 @@
       - init
       - --encryption=none
       - "{{ borg_repository }}"
-  when: borg_repository_check.rc > 1
+  when: not borg_repository_path.stat.exists
+
+- name: Verify Borg repository
+  ansible.builtin.command:
+    argv:
+      - borg
+      - info
+      - "{{ borg_repository }}"
+  register: borg_repository_check
+  changed_when: false
+  failed_when: borg_repository_check.rc > 1
+  environment:
+    BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
 
 - name: Configure Borg backup service
   ansible.builtin.template:
