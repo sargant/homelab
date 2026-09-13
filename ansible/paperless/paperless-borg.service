@@ -1,9 +1,0 @@
-[Unit]
-Description=Paperless Borg backup
-RequiresMountsFor=/mnt/backup
-After=paperless-export.service
-
-[Service]
-Type=oneshot
-WorkingDirectory=/opt/paperless
-ExecStart=/usr/bin/borg create --stats /mnt/backup/borg::{now} export
