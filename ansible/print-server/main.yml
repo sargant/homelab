@@ -47,16 +47,6 @@
         - cups
         - avahi-daemon
 
-    - name: Resolve print server DNS
-      ansible.builtin.command:
-        argv: [getent, hosts, "{{ ansible_host }}"]
-      changed_when: false
-
-    - name: Resolve physical printer DNS
-      ansible.builtin.command:
-        argv: [getent, hosts, "{{ printer_host }}"]
-      changed_when: false
-
     - name: Check raw printer port
       ansible.builtin.wait_for:
         host: "{{ printer_host }}"
