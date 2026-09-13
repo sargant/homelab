@@ -40,9 +40,15 @@
           ansible.builtin.include_tasks: "{{ common_dir }}/install-docker.yml"
 
         - name: Check for existing Paperless database
-          community.docker.docker_volume_info:
-            name: paperless_pgdata
+          ansible.builtin.command:
+            argv:
+              - docker
+              - volume
+              - inspect
+              - paperless_pgdata
           register: paperless_database_volume
+          changed_when: false
+          failed_when: paperless_database_volume.rc not in [0, 1]
 
         - name: Check for pending Paperless restore
           ansible.builtin.stat:
@@ -118,7 +124,7 @@
             samba_config_source: "{{ playbook_dir }}/smb.conf.j2"
 
     - name: Prepare Paperless restore
-      when: not paperless_database_volume.exists or paperless_restore_marker.stat.exists
+      when: paperless_database_volume.rc != 0 or paperless_restore_marker.stat.exists
       block:
         - name: Read pending Paperless restore archive
           ansible.builtin.slurp:
@@ -177,7 +183,7 @@
             remove_volumes: true
           when:
             - paperless_restore_marker.stat.exists
-            - paperless_database_volume.exists
+            - paperless_database_volume.rc == 0
 
         - name: Clear Paperless export directory before restore
           ansible.builtin.file:
