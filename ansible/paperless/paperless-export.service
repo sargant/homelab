@@ -1,0 +1,9 @@
+[Unit]
+Description=Paperless document export
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/paperless
+ExecStart=/usr/bin/docker compose exec -T webserver document_exporter /usr/src/paperless/export --delete
