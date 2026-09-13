@@ -53,35 +53,6 @@
         port: 9100
         timeout: 3
 
-    - name: Read printer supply levels
-      ansible.builtin.shell: |
-        set -e
-        toner="$(snmpget -v2c -c public -Oqv "{{ printer_host }}" "{{ toner_oid }}")"
-        drum_max="$(snmpget -v2c -c public -Oqv "{{ printer_host }}" "{{ drum_max_oid }}")"
-        drum_level="$(snmpget -v2c -c public -Oqv "{{ printer_host }}" "{{ drum_level_oid }}")"
-
-        case "$toner:$drum_max:$drum_level" in
-          *[!0-9:]*|:*|*::*|*:) exit 1 ;;
-        esac
-        [ "$drum_max" -gt 0 ]
-
-        printf '%s:%s:%s\n' "$toner" "$drum_max" "$drum_level"
-      args:
-        executable: /bin/bash
-      register: supply_values
-      changed_when: false
-
-    - name: Calculate printer supply percentages
-      ansible.builtin.set_fact:
-        toner_percent: "{{ supply_values.stdout.split(':')[0] | int }}"
-        drum_percent: >-
-          {{
-            (
-              (supply_values.stdout.split(':')[2] | int) * 100 /
-              (supply_values.stdout.split(':')[1] | int)
-            ) | int
-          }}
-
     - name: Configure CUPS
       ansible.builtin.command:
         argv:
@@ -197,12 +168,14 @@
           } | head -n 6
         )"
 
-        expected='ATTR: marker-levels={{ toner_percent }},{{ drum_percent }}'
-        grep -Fq "$expected" <<<"$wrapper_output"
+        marker_levels="$(grep -E '^ATTR: marker-levels=[0-9]+,[0-9]+$' <<<"$wrapper_output")"
+        levels="${marker_levels#ATTR: marker-levels=}"
+        toner="${levels%,*}"
+        drum="${levels#*,}"
 
         printf 'Backend: %s\n' "$device_uri"
-        printf 'Toner: {{ toner_percent }}%%\n'
-        printf 'Drum: {{ drum_percent }}%%\n'
+        printf 'Toner: %s%%\n' "$toner"
+        printf 'Drum: %s%%\n' "$drum"
       args:
         executable: /bin/bash
       register: verification
