@@ -121,13 +121,6 @@
         marker: "# {mark} ANSIBLE MANAGED VM MANAGEMENT SSH KEY"
         block: "{{ lookup('ansible.builtin.file', '/root/.ssh/vm-management.pub') }}"
 
-    - name: Verify Just
-      ansible.builtin.command:
-        argv:
-          - just
-          - --version
-      changed_when: false
-
     - name: Verify VM management SSH key
       ansible.builtin.command:
         argv:
