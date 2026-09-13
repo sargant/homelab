@@ -12,19 +12,19 @@
       - borg
       - init
       - --encryption=none
-      - /mnt/backup/borg
-    creates: /mnt/backup/borg/config
+      - "{{ paperless_borg_repository }}"
+    creates: "{{ paperless_borg_repository }}/config"
 
 - name: Configure Paperless Borg service
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/paperless-borg.service"
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/paperless-borg.service.j2"
     dest: /etc/systemd/system/paperless-borg.service
     mode: "0644"
   register: paperless_borg_service
 
 - name: Configure Paperless export service
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/paperless-export.service"
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/paperless-export.service.j2"
     dest: /etc/systemd/system/paperless-export.service
     mode: "0644"
   register: paperless_export_service
