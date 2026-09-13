@@ -11,7 +11,7 @@
     fail_msg: compose_source, compose_path, and compose_expected_services must be defined.
 
 - name: Install Docker Compose definition
-  ansible.builtin.copy:
+  ansible.builtin.template:
     src: "{{ compose_source }}"
     dest: "{{ compose_path }}/compose.yml"
     owner: root
