@@ -42,14 +42,6 @@
         update_cache: true
         cache_valid_time: 3600
 
-    - name: Remove unused CUPS recommended services
-      ansible.builtin.apt:
-        name:
-          - colord
-          - cups-browsed
-          - ipp-usb
-        state: absent
-
     - name: Enable print services
       ansible.builtin.systemd_service:
         name: "{{ item }}"
