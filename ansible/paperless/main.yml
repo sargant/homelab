@@ -5,6 +5,11 @@
 
   vars:
     paperless_install_path: /opt/paperless
+    paperless_export_dir: export
+    paperless_export_path: "{{ paperless_install_path }}/{{ paperless_export_dir }}"
+    paperless_export_container_path: "/usr/src/paperless/{{ paperless_export_dir }}"
+    paperless_backup_mountpoint: /mnt/backup
+    paperless_borg_repository: "{{ paperless_backup_mountpoint }}/borg"
     paperless_secret_key_path: "{{ paperless_install_path }}/secrets/paperless_secret_key"
 
   pre_tasks:
@@ -22,7 +27,7 @@
       ansible.builtin.include_tasks: "{{ common_dir }}/configure-nfs-mount.yml"
       vars:
         nfs_source: "{{ hostvars['nas'].ansible_host }}:/volume1/backup/paperless"
-        nfs_mountpoint: /mnt/backup
+        nfs_mountpoint: "{{ paperless_backup_mountpoint }}"
 
     - name: Set Paperless memory overcommit
       ansible.posix.sysctl:
@@ -43,7 +48,7 @@
 
     - name: Create Paperless export directory
       ansible.builtin.file:
-        path: "{{ paperless_install_path }}/export"
+        path: "{{ paperless_export_path }}"
         state: directory
         owner: "1000"
         group: "1000"
