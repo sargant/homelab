@@ -17,14 +17,21 @@
       ansible.builtin.include_tasks: "{{ common_dir }}/bootstrap-debian.yml"
 
   tasks:
-    - name: Install Docker
-      ansible.builtin.include_tasks: "{{ common_dir }}/install-docker.yml"
-
     - name: Configure Paperless backup NFS mount
       ansible.builtin.include_tasks: "{{ common_dir }}/configure-nfs-mount.yml"
       vars:
         nfs_source: "{{ hostvars['nas'].ansible_host }}:/volume1/backup/paperless"
         nfs_mountpoint: "{{ paperless_backup_mountpoint }}"
+
+    - name: Configure Paperless Borg backup
+      ansible.builtin.include_tasks: "{{ common_dir }}/configure-borg-backup.yml"
+      vars:
+        borg_service_name: paperless-borg
+        borg_repository: "{{ paperless_borg_repository }}"
+        borg_source: "{{ paperless_install_path }}/export"
+
+    - name: Install Docker
+      ansible.builtin.include_tasks: "{{ common_dir }}/install-docker.yml"
 
     - name: Set Paperless memory overcommit
       ansible.posix.sysctl:
@@ -116,13 +123,6 @@
       retries: 30
       delay: 2
       until: paperless_http_check.status in [200, 302]
-
-    - name: Configure Paperless Borg backup
-      ansible.builtin.include_tasks: "{{ common_dir }}/configure-borg-backup.yml"
-      vars:
-        borg_service_name: paperless-borg
-        borg_repository: "{{ paperless_borg_repository }}"
-        borg_source: "{{ paperless_install_path }}/export"
 
     - name: Configure Paperless export service
       ansible.builtin.template:
