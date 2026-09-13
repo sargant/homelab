@@ -29,47 +29,22 @@
         nfs_source: "{{ paperless_backup_source }}"
         nfs_mountpoint: "{{ paperless_backup_mount }}"
 
-    - name: Configure Paperless kernel settings
+    - name: Install Paperless kernel settings
       ansible.builtin.copy:
+        src: 99-paperless.conf
         dest: /etc/sysctl.d/99-paperless.conf
         owner: root
         group: root
         mode: "0644"
-        content: |
-          vm.overcommit_memory = 1
+      register: paperless_sysctl_config
 
-    - name: Read memory overcommit setting
+    - name: Apply Paperless kernel settings
       ansible.builtin.command:
         argv:
           - sysctl
-          - -n
-          - vm.overcommit_memory
-      register: paperless_overcommit_memory
-      changed_when: false
-
-    - name: Apply memory overcommit setting
-      ansible.builtin.command:
-        argv:
-          - sysctl
-          - -w
-          - vm.overcommit_memory=1
-      when: paperless_overcommit_memory.stdout | trim != '1'
-      changed_when: true
-
-    - name: Verify memory overcommit setting
-      ansible.builtin.command:
-        argv:
-          - sysctl
-          - -n
-          - vm.overcommit_memory
-      register: paperless_overcommit_memory_check
-      changed_when: false
-
-    - name: Check memory overcommit setting
-      ansible.builtin.assert:
-        that:
-          - paperless_overcommit_memory_check.stdout | trim == '1'
-        fail_msg: vm.overcommit_memory is not set to 1.
+          - -p
+          - /etc/sysctl.d/99-paperless.conf
+      when: paperless_sysctl_config.changed
 
     - name: Create Paperless consume directory
       ansible.builtin.file:
