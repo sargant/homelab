@@ -91,13 +91,6 @@
         mode: "0644"
       register: tailscale_gro_unit
 
-    - name: Reload systemd after configuring UDP GRO service
-      ansible.builtin.command:
-        argv:
-          - systemctl
-          - daemon-reload
-      changed_when: false
-
     - name: Read current UDP GRO settings
       ansible.builtin.command:
         argv:
@@ -111,6 +104,7 @@
       ansible.builtin.systemd_service:
         name: tailscale-gro.service
         enabled: true
+        daemon_reload: "{{ tailscale_gro_unit.changed }}"
         state: >-
           {{
             'restarted'
@@ -247,17 +241,11 @@
         mode: "0644"
       register: tailscale_web_unit
 
-    - name: Reload systemd after configuring Tailscale web console
-      ansible.builtin.command:
-        argv:
-          - systemctl
-          - daemon-reload
-      changed_when: false
-
     - name: Enable Tailscale web console
       ansible.builtin.systemd_service:
         name: tailscale-web.service
         enabled: true
+        daemon_reload: "{{ tailscale_web_unit.changed }}"
         state: "{{ 'restarted' if tailscale_web_unit.changed else 'started' }}"
 
     - name: Wait for Tailscale to be online
