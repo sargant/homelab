@@ -64,6 +64,7 @@
         type: ed25519
         comment: vm-management@vm-host
         regenerate: fail
+        mode: "0600"
       register: vm_management_key
 
     - name: Authorize VM management key for local root SSH
