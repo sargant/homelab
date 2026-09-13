@@ -1,0 +1,39 @@
+---
+- name: Enforce SSH key-only authentication
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-key-only.conf
+    mode: "0644"
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin prohibit-password
+  register: ssh_key_only_config
+
+- name: Validate SSH configuration
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/sshd
+      - -t
+  changed_when: false
+
+- name: Restart SSH after authentication policy change
+  ansible.builtin.systemd_service:
+    name: ssh
+    state: restarted
+  when: ssh_key_only_config.changed
+
+- name: Read effective SSH authentication policy
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/sshd
+      - -T
+  register: ssh_effective_config
+  changed_when: false
+
+- name: Verify SSH key-only authentication
+  ansible.builtin.assert:
+    that:
+      - "ssh_effective_config.stdout is regex('(?m)^passwordauthentication no$')"
+      - "ssh_effective_config.stdout is regex('(?m)^kbdinteractiveauthentication no$')"
+      - "ssh_effective_config.stdout is regex('(?m)^permitrootlogin (prohibit-password|without-password)$')"
+    fail_msg: SSH is not enforcing the expected key-only authentication policy.
