@@ -3,7 +3,7 @@ all:
     ansible_user: root
     ansible_ssh_private_key_file: /root/.ssh/vm-management
     lan_subnet: 192.168.37.0/24
-    tasks_dir: "{{ inventory_dir }}/tasks"
+    common_dir: "{{ inventory_dir }}/common"
 
   hosts:
     vm_host:
