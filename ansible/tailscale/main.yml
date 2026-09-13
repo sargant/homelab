@@ -4,7 +4,6 @@
   gather_facts: false
 
   vars:
-    tailscale_subnet_route: 192.168.37.0/24
     tailscale_lan_interface: eth0
     tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_AUTH_KEY') }}"
 
@@ -187,7 +186,7 @@
         tailscale up
         --auth-key="$TS_AUTH_KEY"
         --hostname="{{ system_hostname }}"
-        --advertise-routes="{{ tailscale_subnet_route }}"
+        --advertise-routes="{{ lan_subnet }}"
         --advertise-exit-node
       environment:
         TS_AUTH_KEY: "{{ tailscale_auth_key }}"
@@ -233,7 +232,7 @@
           - tailscale
           - set
           - "--hostname={{ system_hostname }}"
-          - "--advertise-routes={{ tailscale_subnet_route }}"
+          - "--advertise-routes={{ lan_subnet }}"
           - --advertise-exit-node
       changed_when: false
 
@@ -342,7 +341,7 @@
 
           In the Tailscale admin console:
             Machines -> {{ system_hostname }} -> Edit route settings
-            -> approve {{ tailscale_subnet_route }}
+            -> approve {{ lan_subnet }}
 
           Then rerun this playbook.
 
@@ -373,7 +372,7 @@
       ansible.builtin.debug:
         msg:
           - "Tailscale IPv4: {{ tailscale_ipv4.stdout | trim }}"
-          - "Advertised subnet: {{ tailscale_subnet_route }}"
+          - "Advertised subnet: {{ lan_subnet }}"
           - "Subnet route: approved"
           - "Exit node: approved"
           - "Web console: http://{{ ansible_host }}/"
