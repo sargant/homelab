@@ -127,6 +127,7 @@
           changed=1
         fi
 
+        # Preserve a friendly printer name in the iOS/AirPrint UI.
         if ! grep -q '^\*NickName: "Brother HL-1200 series via CUPS"$' "$ppd"; then
           sed -i \
             's#^\*NickName: ".*"#*NickName: "Brother HL-1200 series via CUPS"#' \
