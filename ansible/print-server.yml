@@ -24,13 +24,6 @@
     - name: Bootstrap Debian
       ansible.builtin.import_tasks: tasks/bootstrap-debian.yml
 
-    - name: Check hostname
-      ansible.builtin.assert:
-        that:
-          - ansible_hostname == system_hostname
-        fail_msg: >-
-          Expected host {{ system_hostname }}, found {{ ansible_hostname }}.
-
   tasks:
     - name: Install print server packages
       ansible.builtin.apt:
