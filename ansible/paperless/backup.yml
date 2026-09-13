@@ -25,5 +25,5 @@
   ansible.builtin.systemd_service:
     name: paperless-export.timer
     enabled: true
-    daemon_reload: "{{ borg_service.changed or paperless_export_service.changed or paperless_export_timer.changed }}"
+    daemon_reload: "{{ paperless_export_service.changed or paperless_export_timer.changed }}"
     state: "{{ 'restarted' if paperless_export_timer.changed else 'started' }}"
