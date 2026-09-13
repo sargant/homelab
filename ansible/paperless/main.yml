@@ -114,3 +114,6 @@
       retries: 30
       delay: 2
       until: paperless_http_check.status in [200, 302]
+
+    - name: Configure Paperless backups
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/backup.yml"
