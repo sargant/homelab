@@ -59,7 +59,6 @@
           - cupsctl
           - --remote-any
           - --share-printers
-          - --no-debug-logging
           - "ServerAlias={{ ansible_host }}"
       changed_when: false
 
@@ -94,15 +93,16 @@
 
         current_uri="$(lpstat -v "{{ printer_queue }}" | sed 's/.*: //')"
         if [ "$current_uri" != "{{ printer_device_uri }}" ]; then
-          lpadmin -p "{{ printer_queue }}" -v "{{ printer_device_uri }}"
           changed=1
         fi
 
-        lpadmin -p "{{ printer_queue }}" -D "{{ printer_name }}" -L "print-server"
-        lpadmin -p "{{ printer_queue }}" -o cupsSNMPSupplies=false
-        lpadmin -d "{{ printer_queue }}"
-        cupsaccept "{{ printer_queue }}"
-        cupsenable "{{ printer_queue }}"
+        lpadmin \
+          -p "{{ printer_queue }}" \
+          -E \
+          -D "{{ printer_name }}" \
+          -L "print-server" \
+          -v "{{ printer_device_uri }}" \
+          -o cupsSNMPSupplies=false
 
         ppd="{{ printer_ppd }}"
         [ -f "$ppd" ]
