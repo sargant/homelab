@@ -146,9 +146,6 @@
       ansible.builtin.shell: |
         set -euo pipefail
 
-        systemctl is-active --quiet cups
-        systemctl is-active --quiet avahi-daemon
-
         device_uri="$(lpstat -v "{{ printer_queue }}" | sed 's/.*: //')"
         [ "$device_uri" = "{{ printer_device_uri }}" ]
 
@@ -157,14 +154,10 @@
         grep -q '^\*NickName: "Brother HL-1200 series via CUPS"$' "{{ printer_ppd }}"
 
         wrapper_output="$(
-          {
-            printf '' |
-              "{{ supply_wrapper }}" 1 root supply-check 1 '' 2>&1 ||
-              true
-          } | head -n 6
+          "{{ supply_wrapper }}" 1 root supply-check 1 '' </dev/null 2>&1 || true
         )"
 
-        marker_levels="$(grep -E '^ATTR: marker-levels=[0-9]+,[0-9]+$' <<<"$wrapper_output")"
+        marker_levels="$(grep -m1 -E '^ATTR: marker-levels=[0-9]+,[0-9]+$' <<<"$wrapper_output")"
         levels="${marker_levels#ATTR: marker-levels=}"
         toner="${levels%,*}"
         drum="${levels#*,}"
