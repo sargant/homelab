@@ -31,3 +31,8 @@
     dest: "/etc/systemd/system/{{ borg_service_name }}.service"
     mode: "0644"
   register: borg_service
+
+- name: Reload systemd for Borg backup service
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: borg_service.changed
