@@ -21,6 +21,21 @@
       Expected Debian 13, found
       {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}.
 
+- name: Install common management tools
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - jq
+      - iputils-ping
+      - dnsutils
+      - lsof
+      - neovim
+      - tmux
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
 - name: Check hostname
   ansible.builtin.assert:
     that:
