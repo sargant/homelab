@@ -1,0 +1,13 @@
+[Unit]
+Description=Tailscale web console
+After=tailscaled.service
+Requires=tailscaled.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/tailscale web --listen=0.0.0.0:80
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

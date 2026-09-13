@@ -21,7 +21,7 @@ print-server:
 # Configure the Tailscale router after verifying its infrastructure is converged.
 tailscale:
   tofu -chdir=infra plan -target=proxmox_virtual_environment_container.tailscale -detailed-exitcode -compact-warnings
-  cd ansible && ansible-playbook tailscale.yml
+  cd ansible && ansible-playbook tailscale/main.yml
 
 # Configure the Paperless host after verifying its infrastructure is converged.
 paperless:
