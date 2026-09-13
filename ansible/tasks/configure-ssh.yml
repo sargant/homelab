@@ -9,7 +9,7 @@
 
 - name: Fetch GitHub SSH keys
   ansible.builtin.uri:
-    url: "https://github.com/{{ github_ssh_user }}.keys"
+    url: https://github.com/sargant.keys
     return_content: true
     status_code: 200
   register: github_ssh_keys
@@ -19,7 +19,7 @@
   ansible.builtin.assert:
     that:
       - github_ssh_keys.content | trim | length > 0
-    fail_msg: "GitHub returned no SSH keys for {{ github_ssh_user }}."
+    fail_msg: GitHub returned no SSH keys for sargant.
 
 - name: Trust GitHub SSH keys for root
   ansible.builtin.blockinfile:
