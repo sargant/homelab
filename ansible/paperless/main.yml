@@ -39,22 +39,6 @@
         - name: Install Docker
           ansible.builtin.include_tasks: "{{ common_dir }}/install-docker.yml"
 
-        - name: Check for existing Paperless database
-          ansible.builtin.command:
-            argv:
-              - docker
-              - volume
-              - inspect
-              - paperless_pgdata
-          register: paperless_database_volume
-          changed_when: false
-          failed_when: paperless_database_volume.rc not in [0, 1]
-
-        - name: Check for pending Paperless restore
-          ansible.builtin.stat:
-            path: "{{ paperless_restore_marker_path }}"
-          register: paperless_restore_marker
-
         - name: Set Paperless memory overcommit
           ansible.posix.sysctl:
             name: vm.overcommit_memory
@@ -71,14 +55,6 @@
             owner: "1000"
             group: "1000"
             mode: "0777"
-
-        - name: Create Paperless export directory
-          ansible.builtin.file:
-            path: "{{ paperless_install_path }}/export"
-            state: directory
-            owner: "1000"
-            group: "1000"
-            mode: "0755"
 
         - name: Create Paperless secrets directory
           ansible.builtin.file:
@@ -124,84 +100,108 @@
             samba_config_source: "{{ playbook_dir }}/smb.conf.j2"
 
     - name: Prepare Paperless restore
-      when: paperless_database_volume.rc != 0 or paperless_restore_marker.stat.exists
       block:
-        - name: Read pending Paperless restore archive
-          ansible.builtin.slurp:
-            src: "{{ paperless_restore_marker_path }}"
-          register: paperless_restore_marker_content
-          when: paperless_restore_marker.stat.exists
-
-        - name: Select pending Paperless restore archive
-          ansible.builtin.set_fact:
-            paperless_restore_archive: "{{ paperless_restore_marker_content.content | b64decode | trim }}"
-          when: paperless_restore_marker.stat.exists
-
-        - name: Find latest Paperless backup
+        - name: Check for existing Paperless database
           ansible.builtin.command:
             argv:
-              - borg
-              - list
-              - --last
-              - "1"
-              - --format
-              - "{archive}{NL}"
-              - "{{ paperless_borg_repository }}"
-          register: paperless_backup_list
+              - docker
+              - volume
+              - inspect
+              - paperless_pgdata
+          register: paperless_database_volume
           changed_when: false
-          when: not paperless_restore_marker.stat.exists
-          environment:
-            BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
+          failed_when: paperless_database_volume.rc not in [0, 1]
 
-        - name: Select latest Paperless restore archive
-          ansible.builtin.set_fact:
-            paperless_restore_archive: "{{ paperless_backup_list.stdout | trim }}"
-          when: not paperless_restore_marker.stat.exists
+        - name: Check for pending Paperless restore
+          ansible.builtin.stat:
+            path: "{{ paperless_restore_marker_path }}"
+          register: paperless_restore_marker
 
-        - name: Check pending Paperless restore archive
-          ansible.builtin.assert:
-            that:
-              - paperless_restore_archive | length > 0
-            fail_msg: Pending Paperless restore does not contain an archive name.
-          when: paperless_restore_marker.stat.exists
+        - name: Restore Paperless data
+          when: paperless_database_volume.rc != 0 or paperless_restore_marker.stat.exists
+          block:
+            - name: Read pending Paperless restore archive
+              ansible.builtin.slurp:
+                src: "{{ paperless_restore_marker_path }}"
+              register: paperless_restore_marker_content
+              when: paperless_restore_marker.stat.exists
 
-        - name: Record pending Paperless restore
-          ansible.builtin.copy:
-            dest: "{{ paperless_restore_marker_path }}"
-            content: "{{ paperless_restore_archive }}\n"
-            owner: root
-            group: root
-            mode: "0600"
-          when:
-            - not paperless_restore_marker.stat.exists
-            - paperless_restore_archive | length > 0
+            - name: Select pending Paperless restore archive
+              ansible.builtin.set_fact:
+                paperless_restore_archive: "{{ paperless_restore_marker_content.content | b64decode | trim }}"
+              when: paperless_restore_marker.stat.exists
 
-        - name: Reset incomplete Paperless restore
-          community.docker.docker_compose_v2:
-            project_src: "{{ paperless_install_path }}"
-            state: absent
-            remove_volumes: true
-          when:
-            - paperless_restore_marker.stat.exists
-            - paperless_database_volume.rc == 0
+            - name: Find latest Paperless backup
+              ansible.builtin.command:
+                argv:
+                  - borg
+                  - list
+                  - --last
+                  - "1"
+                  - --format
+                  - "{archive}{NL}"
+                  - "{{ paperless_borg_repository }}"
+              register: paperless_backup_list
+              changed_when: false
+              when: not paperless_restore_marker.stat.exists
 
-        - name: Clear Paperless export directory before restore
+            - name: Select latest Paperless restore archive
+              ansible.builtin.set_fact:
+                paperless_restore_archive: "{{ paperless_backup_list.stdout | trim }}"
+              when: not paperless_restore_marker.stat.exists
+
+            - name: Check pending Paperless restore archive
+              ansible.builtin.assert:
+                that:
+                  - paperless_restore_archive | length > 0
+                fail_msg: Pending Paperless restore does not contain an archive name.
+              when: paperless_restore_marker.stat.exists
+
+            - name: Record pending Paperless restore
+              ansible.builtin.copy:
+                dest: "{{ paperless_restore_marker_path }}"
+                content: "{{ paperless_restore_archive }}\n"
+                owner: root
+                group: root
+                mode: "0600"
+              when:
+                - not paperless_restore_marker.stat.exists
+                - paperless_restore_archive | length > 0
+
+            - name: Reset incomplete Paperless restore
+              community.docker.docker_compose_v2:
+                project_src: "{{ paperless_install_path }}"
+                state: absent
+                remove_volumes: true
+              when:
+                - paperless_restore_marker.stat.exists
+                - paperless_database_volume.rc == 0
+
+            - name: Clear Paperless export directory before restore
+              ansible.builtin.file:
+                path: "{{ paperless_install_path }}/export"
+                state: absent
+              when: paperless_restore_archive | length > 0
+
+            - name: Restore latest Paperless export
+              ansible.builtin.command:
+                argv:
+                  - borg
+                  - extract
+                  - "{{ paperless_borg_repository }}::{{ paperless_restore_archive }}"
+                  - export
+                chdir: "{{ paperless_install_path }}"
+              when: paperless_restore_archive | length > 0
+
+        - name: Ensure Paperless export directory
           ansible.builtin.file:
             path: "{{ paperless_install_path }}/export"
-            state: absent
-          when: paperless_restore_archive | length > 0
-
-        - name: Restore latest Paperless export
-          ansible.builtin.command:
-            argv:
-              - borg
-              - extract
-              - "{{ paperless_borg_repository }}::{{ paperless_restore_archive }}"
-              - export
-            chdir: "{{ paperless_install_path }}"
-          when: paperless_restore_archive | length > 0
-          environment:
-            BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
+            state: directory
+            owner: "1000"
+            group: "1000"
+            mode: "0755"
+      environment:
+        BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
 
     - name: Configure Paperless application
       block:
@@ -223,10 +223,8 @@
             status_code:
               - 200
               - 302
-          register: paperless_http_check
           retries: 12
           delay: 5
-          until: paperless_http_check.status in [200, 302]
 
         - name: Import restored Paperless backup
           community.docker.docker_compose_v2_exec:
