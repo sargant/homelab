@@ -1,0 +1,10 @@
+[Unit]
+Description=Paperless document export
+Requires=docker.service
+After=docker.service
+OnSuccess=paperless-borg.service
+
+[Service]
+Type=oneshot
+WorkingDirectory={{ paperless_install_path }}
+ExecStart=/usr/bin/docker compose exec -T webserver document_exporter {{ paperless_export_container_path }} --delete
