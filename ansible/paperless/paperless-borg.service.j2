@@ -1,0 +1,9 @@
+[Unit]
+Description=Paperless Borg backup
+RequiresMountsFor={{ paperless_backup_mountpoint }}
+After=paperless-export.service
+
+[Service]
+Type=oneshot
+WorkingDirectory={{ paperless_install_path }}
+ExecStart=/usr/bin/borg create --stats {{ paperless_borg_repository }}::{now} {{ paperless_export_dir }}
