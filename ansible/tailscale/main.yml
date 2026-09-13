@@ -67,18 +67,22 @@
         update_cache: true
 
     - name: Configure IP forwarding
-      ansible.builtin.template:
-        src: "{{ playbook_dir }}/99-tailscale.conf.j2"
-        dest: /etc/sysctl.d/99-tailscale.conf
-        mode: "0644"
-
-    - name: Apply IP forwarding settings
-      ansible.builtin.command:
-        argv:
-          - sysctl
-          - -p
-          - /etc/sysctl.d/99-tailscale.conf
-      changed_when: false
+      ansible.posix.sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        sysctl_set: true
+        reload: true
+        sysctl_file: /etc/sysctl.d/99-tailscale.conf
+      loop:
+        - name: net.ipv4.ip_forward
+          value: "1"
+        - name: net.ipv6.conf.all.forwarding
+          value: "1"
+        - name: "net.ipv6.conf.{{ tailscale_lan_interface }}.accept_ra"
+          value: "2"
+      loop_control:
+        label: "{{ item.name }}={{ item.value }}"
 
     - name: Configure UDP GRO service
       ansible.builtin.template:
@@ -277,24 +281,6 @@
       register: tailscale_ipv4
       changed_when: false
 
-    - name: Verify IPv4 forwarding
-      ansible.builtin.command:
-        argv:
-          - sysctl
-          - -n
-          - net.ipv4.ip_forward
-      register: tailscale_ipv4_forward
-      changed_when: false
-
-    - name: Verify IPv6 forwarding
-      ansible.builtin.command:
-        argv:
-          - sysctl
-          - -n
-          - net.ipv6.conf.all.forwarding
-      register: tailscale_ipv6_forward
-      changed_when: false
-
     - name: Read UDP GRO settings
       ansible.builtin.command:
         argv:
@@ -308,8 +294,6 @@
       ansible.builtin.assert:
         that:
           - tailscale_ipv4.stdout | trim | length > 0
-          - tailscale_ipv4_forward.stdout | trim == "1"
-          - tailscale_ipv6_forward.stdout | trim == "1"
           - "tailscale_gro.stdout is regex('(?m)^rx-udp-gro-forwarding: on')"
           - "tailscale_gro.stdout is regex('(?m)^rx-gro-list: off')"
 
