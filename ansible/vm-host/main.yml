@@ -1,0 +1,78 @@
+---
+- name: Initialize Proxmox management host
+  hosts: vm_host
+  gather_facts: false
+
+  vars:
+    proxmox_storage_requirements:
+      - storage: local
+        content:
+          - vztmpl
+          - import
+          - snippets
+      - storage: local-lvm
+        content:
+          - rootdir
+          - images
+
+  tasks:
+    - name: Bootstrap Debian host
+      ansible.builtin.include_tasks: "{{ common_dir }}/bootstrap-debian.yml"
+
+    - name: Check Proxmox VE
+      ansible.builtin.command:
+        argv:
+          - pveversion
+      changed_when: false
+
+    - name: Check required Proxmox storage content types
+      ansible.builtin.command:
+        argv:
+          - pvesh
+          - get
+          - "/nodes/{{ ansible_facts['hostname'] }}/storage"
+          - --storage
+          - "{{ item.0.storage }}"
+          - --content
+          - "{{ item.1 }}"
+          - --enabled
+          - "1"
+          - --output-format
+          - json
+      loop: "{{ proxmox_storage_requirements | subelements('content') }}"
+      loop_control:
+        label: "{{ item.0.storage }} supports {{ item.1 }}"
+      register: proxmox_storage_check
+      changed_when: false
+      failed_when: (proxmox_storage_check.stdout | from_json | length) == 0
+
+    - name: Install management prerequisites
+      ansible.builtin.apt:
+        name:
+          - just
+          - openssh-client
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install OpenTofu
+      ansible.builtin.include_tasks: "{{ common_dir }}/install-opentofu.yml"
+
+    - name: Configure VM management SSH keypair
+      community.crypto.openssh_keypair:
+        path: /root/.ssh/vm-management
+        type: ed25519
+        comment: vm-management@vm-host
+        regenerate: fail
+        mode: "0600"
+      register: vm_management_key
+
+    - name: Authorize VM management key for local root SSH
+      ansible.builtin.blockinfile:
+        path: /root/.ssh/authorized_keys
+        create: true
+        owner: root
+        group: root
+        mode: "0600"
+        marker: "# {mark} ANSIBLE MANAGED VM MANAGEMENT SSH KEY"
+        block: "{{ vm_management_key.public_key }}"
