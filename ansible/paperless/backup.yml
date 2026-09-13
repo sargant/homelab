@@ -6,6 +6,22 @@
     update_cache: true
     cache_valid_time: 3600
 
+- name: Initialize Paperless Borg repository
+  ansible.builtin.command:
+    argv:
+      - borg
+      - init
+      - --encryption=none
+      - /mnt/backup/borg
+    creates: /mnt/backup/borg/config
+
+- name: Configure Paperless Borg service
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/paperless-borg.service"
+    dest: /etc/systemd/system/paperless-borg.service
+    mode: "0644"
+  register: paperless_borg_service
+
 - name: Configure Paperless export service
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/paperless-export.service"
@@ -24,5 +40,5 @@
   ansible.builtin.systemd_service:
     name: paperless-export.timer
     enabled: true
-    daemon_reload: "{{ paperless_export_service.changed or paperless_export_timer.changed }}"
+    daemon_reload: "{{ paperless_borg_service.changed or paperless_export_service.changed or paperless_export_timer.changed }}"
     state: "{{ 'restarted' if paperless_export_timer.changed else 'started' }}"
