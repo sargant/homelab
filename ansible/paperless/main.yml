@@ -71,12 +71,6 @@
           - paperless_overcommit_memory_check.stdout | trim == '1'
         fail_msg: vm.overcommit_memory is not set to 1.
 
-    - name: Install Paperless host packages
-      ansible.builtin.apt:
-        name:
-          - samba
-        state: present
-
     - name: Create Paperless consume directory
       ansible.builtin.file:
         path: "{{ paperless_consume_path }}"
@@ -132,45 +126,9 @@
         mode: "0600"
 
     - name: Configure Paperless Samba inbox
-      ansible.builtin.template:
-        src: smb.conf.j2
-        dest: /etc/samba/smb.conf
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Restart Samba
-
-    - name: Validate Samba configuration
-      ansible.builtin.command:
-        argv:
-          - testparm
-          - -s
-      register: paperless_samba_config_check
-      changed_when: false
-
-    - name: Enable and start Samba
-      ansible.builtin.service:
-        name: smbd
-        enabled: true
-        state: started
-
-    - name: Apply Samba configuration
-      ansible.builtin.meta: flush_handlers
-
-    - name: Verify Samba is running
-      ansible.builtin.command:
-        argv:
-          - systemctl
-          - is-active
-          - smbd
-      register: paperless_samba_service_check
-      changed_when: false
-
-    - name: Check Samba service
-      ansible.builtin.assert:
-        that:
-          - paperless_samba_service_check.stdout | trim == 'active'
-        fail_msg: Samba is not active.
+      ansible.builtin.import_tasks: "{{ common_dir }}/configure-samba-host.yml"
+      vars:
+        samba_config_source: "{{ playbook_dir }}/smb.conf.j2"
 
     - name: Install Paperless Compose definition
       ansible.builtin.copy:
@@ -253,9 +211,3 @@
       retries: 30
       delay: 2
       until: paperless_http_check.status in [200, 302]
-
-  handlers:
-    - name: Restart Samba
-      ansible.builtin.service:
-        name: smbd
-        state: restarted
