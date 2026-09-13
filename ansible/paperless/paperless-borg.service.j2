@@ -7,3 +7,5 @@ After=paperless-export.service
 Type=oneshot
 WorkingDirectory={{ paperless_install_path }}
 ExecStart=/usr/bin/borg create --stats {{ paperless_backup_mountpoint }}/borg::{now} export
+ExecStart=/usr/bin/borg prune --list --keep-last 3 --keep-daily 7 --keep-weekly 4 --keep-monthly 12 {{ paperless_backup_mountpoint }}/borg
+ExecStart=/usr/bin/borg compact {{ paperless_backup_mountpoint }}/borg
