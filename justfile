@@ -1,3 +1,4 @@
+set default-list := true
 set dotenv-load
 set dotenv-required
 
