@@ -6,6 +6,16 @@
     update_cache: true
     cache_valid_time: 3600
 
+- name: Check Paperless Borg repository
+  ansible.builtin.command:
+    argv:
+      - borg
+      - info
+      - "{{ paperless_backup_mountpoint }}/borg"
+  register: paperless_borg_repository_check
+  changed_when: false
+  failed_when: false
+
 - name: Initialize Paperless Borg repository
   ansible.builtin.command:
     argv:
@@ -13,7 +23,7 @@
       - init
       - --encryption=none
       - "{{ paperless_backup_mountpoint }}/borg"
-    creates: "{{ paperless_backup_mountpoint }}/borg/config"
+  when: paperless_borg_repository_check.rc > 1
 
 - name: Configure Paperless Borg service
   ansible.builtin.template:
