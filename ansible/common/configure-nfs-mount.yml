@@ -21,6 +21,25 @@
     opts: "{{ nfs_mount_options | default('defaults,_netdev') }}"
     state: mounted
 
+- name: Read NFS mount source
+  ansible.builtin.command:
+    argv:
+      - findmnt
+      - -n
+      - -o
+      - SOURCE
+      - "{{ nfs_mountpoint }}"
+  register: nfs_mount_source
+  changed_when: false
+
+- name: Check NFS mount source
+  ansible.builtin.assert:
+    that:
+      - nfs_mount_source.stdout | trim == nfs_source
+    fail_msg: >-
+      {{ nfs_mountpoint }} is mounted from {{ nfs_mount_source.stdout | trim }},
+      expected {{ nfs_source }}.
+
 - name: Verify NFS read/write access
   block:
     - name: Create unique NFS mount probe
