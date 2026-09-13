@@ -58,7 +58,6 @@
     - name: Install management prerequisites
       ansible.builtin.apt:
         name:
-          - ansible-core
           - just
           - openssh-client
         state: present
