@@ -80,6 +80,7 @@
         set -euo pipefail
         changed=0
 
+        # lpstat -p "$name" does not reliably indicate whether that exact queue exists.
         printer_exists() {
           lpstat -p 2>/dev/null | awk '{print $2}' | grep -Fxq "$1"
         }
@@ -90,6 +91,7 @@
           changed=1
         fi
 
+        # Only specify the driver when creating the queue; -m regenerates the PPD.
         if ! printer_exists "{{ printer_queue }}"; then
           lpadmin \
             -p "{{ printer_queue }}" \
