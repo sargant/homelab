@@ -8,40 +8,16 @@
 
 - name: Configure Paperless export service
   ansible.builtin.copy:
+    src: "{{ playbook_dir }}/paperless-export.service"
     dest: /etc/systemd/system/paperless-export.service
-    owner: root
-    group: root
     mode: "0644"
-    content: |
-      [Unit]
-      Description=Paperless document export
-      Requires=docker.service
-      After=docker.service
-
-      [Service]
-      Type=oneshot
-      WorkingDirectory={{ paperless_install_path }}
-      ExecStart=/usr/bin/docker compose exec -T webserver document_exporter /usr/src/paperless/export --delete
   register: paperless_export_service
 
 - name: Configure Paperless export timer
   ansible.builtin.copy:
+    src: "{{ playbook_dir }}/paperless-export.timer"
     dest: /etc/systemd/system/paperless-export.timer
-    owner: root
-    group: root
     mode: "0644"
-    content: |
-      [Unit]
-      Description=Daily Paperless document export
-
-      [Timer]
-      OnCalendar=*-*-* 03:00:00
-      Persistent=true
-      RandomizedDelaySec=10m
-      Unit=paperless-export.service
-
-      [Install]
-      WantedBy=timers.target
   register: paperless_export_timer
 
 - name: Enable Paperless export timer
