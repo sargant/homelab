@@ -4,8 +4,7 @@
   vars:
     borg_service_name: paperless-borg
     borg_repository: "{{ paperless_borg_repository }}"
-    borg_working_directory: "{{ paperless_install_path }}"
-    borg_source: export
+    borg_source: "{{ paperless_install_path }}/export"
 
 - name: Configure Paperless export service
   ansible.builtin.template:
