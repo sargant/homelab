@@ -130,74 +130,15 @@
       vars:
         samba_config_source: "{{ playbook_dir }}/smb.conf.j2"
 
-    - name: Install Paperless Compose definition
-      ansible.builtin.copy:
-        src: compose.yml
-        dest: "{{ paperless_install_path }}/compose.yml"
-        owner: root
-        group: root
-        mode: "0644"
-
-    - name: Validate Paperless Compose definition
-      ansible.builtin.command:
-        argv:
-          - docker
-          - compose
-          - config
-          - --quiet
-      args:
-        chdir: "{{ paperless_install_path }}"
-      changed_when: false
-
-    - name: Pull Paperless images
-      ansible.builtin.command:
-        argv:
-          - docker
-          - compose
-          - pull
-      args:
-        chdir: "{{ paperless_install_path }}"
-      changed_when: false
-
-    - name: Start Paperless
-      ansible.builtin.command:
-        argv:
-          - docker
-          - compose
-          - up
-          - -d
-      args:
-        chdir: "{{ paperless_install_path }}"
-      register: paperless_compose_up
-      changed_when: >-
-        'Created' in paperless_compose_up.stdout or
-        'Created' in paperless_compose_up.stderr or
-        'Recreated' in paperless_compose_up.stdout or
-        'Recreated' in paperless_compose_up.stderr or
-        'Started' in paperless_compose_up.stdout or
-        'Started' in paperless_compose_up.stderr
-
-    - name: Read running Paperless services
-      ansible.builtin.command:
-        argv:
-          - docker
-          - compose
-          - ps
-          - --status
-          - running
-          - --services
-      args:
-        chdir: "{{ paperless_install_path }}"
-      register: paperless_running_services
-      changed_when: false
-
-    - name: Check Paperless services
-      ansible.builtin.assert:
-        that:
-          - paperless_running_services.stdout_lines | sort == ['broker', 'db', 'webserver'] | sort
-        fail_msg: >-
-          Expected broker, db, and webserver to be running; found
-          {{ paperless_running_services.stdout_lines | join(', ') }}.
+    - name: Configure Paperless Docker Compose services
+      ansible.builtin.import_tasks: "{{ common_dir }}/configure-docker-compose.yml"
+      vars:
+        compose_source: "{{ playbook_dir }}/compose.yml"
+        compose_path: "{{ paperless_install_path }}"
+        compose_expected_services:
+          - broker
+          - db
+          - webserver
 
     - name: Wait for Paperless HTTP response
       ansible.builtin.uri:
