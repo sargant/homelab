@@ -12,8 +12,8 @@
       - borg
       - init
       - --encryption=none
-      - "{{ paperless_borg_repository }}"
-    creates: "{{ paperless_borg_repository }}/config"
+      - "{{ paperless_backup_mountpoint }}/borg"
+    creates: "{{ paperless_backup_mountpoint }}/borg/config"
 
 - name: Configure Paperless Borg service
   ansible.builtin.template:
