@@ -18,184 +18,193 @@
       ansible.builtin.include_tasks: "{{ common_dir }}/bootstrap-debian.yml"
 
   tasks:
-    - name: Configure Paperless backup NFS mount
-      ansible.builtin.include_tasks: "{{ common_dir }}/configure-nfs-mount.yml"
-      vars:
-        nfs_source: "{{ hostvars['nas'].ansible_host }}:/volume1/backup/paperless"
-        nfs_mountpoint: "{{ paperless_backup_mountpoint }}"
+    - name: Configure Paperless backup infrastructure
+      block:
+        - name: Configure Paperless backup NFS mount
+          ansible.builtin.include_tasks: "{{ common_dir }}/configure-nfs-mount.yml"
+          vars:
+            nfs_source: "{{ hostvars['nas'].ansible_host }}:/volume1/backup/paperless"
+            nfs_mountpoint: "{{ paperless_backup_mountpoint }}"
 
-    - name: Configure Paperless Borg backup
-      ansible.builtin.include_tasks: "{{ common_dir }}/configure-borg-backup.yml"
-      vars:
-        borg_service_name: paperless-borg
-        borg_repository: "{{ paperless_borg_repository }}"
-        borg_source: "{{ paperless_install_path }}/export"
+        - name: Configure Paperless Borg backup
+          ansible.builtin.include_tasks: "{{ common_dir }}/configure-borg-backup.yml"
+          vars:
+            borg_service_name: paperless-borg
+            borg_repository: "{{ paperless_borg_repository }}"
+            borg_source: "{{ paperless_install_path }}/export"
 
-    - name: Install Docker
-      ansible.builtin.include_tasks: "{{ common_dir }}/install-docker.yml"
+    - name: Configure Paperless host
+      block:
+        - name: Install Docker
+          ansible.builtin.include_tasks: "{{ common_dir }}/install-docker.yml"
 
-    - name: Check for existing Paperless database
-      community.docker.docker_volume_info:
-        name: paperless_pgdata
-      register: paperless_database_volume
+        - name: Check for existing Paperless database
+          community.docker.docker_volume_info:
+            name: paperless_pgdata
+          register: paperless_database_volume
 
-    - name: Set Paperless memory overcommit
-      ansible.posix.sysctl:
-        name: vm.overcommit_memory
-        value: "1"
-        state: present
-        sysctl_set: true
-        reload: true
-        sysctl_file: /etc/sysctl.d/99-paperless.conf
+        - name: Set Paperless memory overcommit
+          ansible.posix.sysctl:
+            name: vm.overcommit_memory
+            value: "1"
+            state: present
+            sysctl_set: true
+            reload: true
+            sysctl_file: /etc/sysctl.d/99-paperless.conf
 
-    - name: Create Paperless consume directory
-      ansible.builtin.file:
-        path: "{{ paperless_install_path }}/consume"
-        state: directory
-        owner: "1000"
-        group: "1000"
-        mode: "0777"
+        - name: Create Paperless consume directory
+          ansible.builtin.file:
+            path: "{{ paperless_install_path }}/consume"
+            state: directory
+            owner: "1000"
+            group: "1000"
+            mode: "0777"
 
-    - name: Create Paperless export directory
-      ansible.builtin.file:
-        path: "{{ paperless_install_path }}/export"
-        state: directory
-        owner: "1000"
-        group: "1000"
-        mode: "0755"
+        - name: Create Paperless export directory
+          ansible.builtin.file:
+            path: "{{ paperless_install_path }}/export"
+            state: directory
+            owner: "1000"
+            group: "1000"
+            mode: "0755"
 
-    - name: Find latest Paperless backup
-      ansible.builtin.command:
-        argv:
-          - borg
-          - list
-          - --last
-          - "1"
-          - --format
-          - "{archive}{NL}"
-          - "{{ paperless_borg_repository }}"
-      register: paperless_backup_list
-      changed_when: false
+        - name: Create Paperless secrets directory
+          ansible.builtin.file:
+            path: "{{ paperless_secret_key_path | dirname }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0700"
+
+        - name: Generate Paperless secret key
+          ansible.builtin.command:
+            argv:
+              - python3
+              - -c
+              - >-
+                import secrets, pathlib;
+                pathlib.Path({{ paperless_secret_key_path | to_json }}).write_text(secrets.token_hex(32))
+            creates: "{{ paperless_secret_key_path }}"
+
+        - name: Read Paperless secret key metadata
+          ansible.builtin.stat:
+            path: "{{ paperless_secret_key_path }}"
+          register: paperless_secret_key_file
+
+        - name: Check Paperless secret key
+          ansible.builtin.assert:
+            that:
+              - paperless_secret_key_file.stat.exists
+              - paperless_secret_key_file.stat.size == 64
+            fail_msg: Paperless secret key is missing or invalid.
+
+        - name: Secure Paperless secret key
+          ansible.builtin.file:
+            path: "{{ paperless_secret_key_path }}"
+            state: file
+            owner: root
+            group: root
+            mode: "0600"
+
+        - name: Configure Paperless Samba inbox
+          ansible.builtin.include_tasks: "{{ common_dir }}/configure-samba-host.yml"
+          vars:
+            samba_config_source: "{{ playbook_dir }}/smb.conf.j2"
+
+    - name: Prepare Paperless restore
       when: not paperless_database_volume.exists
-      environment:
-        BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
+      block:
+        - name: Find latest Paperless backup
+          ansible.builtin.command:
+            argv:
+              - borg
+              - list
+              - --last
+              - "1"
+              - --format
+              - "{archive}{NL}"
+              - "{{ paperless_borg_repository }}"
+          register: paperless_backup_list
+          changed_when: false
+          environment:
+            BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
 
-    - name: Select Paperless restore archive
-      ansible.builtin.set_fact:
-        paperless_restore_archive: "{{ paperless_backup_list.stdout | trim }}"
-      when: not paperless_database_volume.exists
+        - name: Select Paperless restore archive
+          ansible.builtin.set_fact:
+            paperless_restore_archive: "{{ paperless_backup_list.stdout | trim }}"
 
-    - name: Clear Paperless export directory before restore
-      ansible.builtin.file:
-        path: "{{ paperless_install_path }}/export"
-        state: absent
-      when: paperless_restore_archive | default('') | length > 0
+        - name: Clear Paperless export directory before restore
+          ansible.builtin.file:
+            path: "{{ paperless_install_path }}/export"
+            state: absent
+          when: paperless_restore_archive | length > 0
 
-    - name: Restore latest Paperless export
-      ansible.builtin.command:
-        argv:
-          - borg
-          - extract
-          - "{{ paperless_borg_repository }}::{{ paperless_restore_archive }}"
-          - export
-        chdir: "{{ paperless_install_path }}"
-      when: paperless_restore_archive | default('') | length > 0
-      environment:
-        BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
+        - name: Restore latest Paperless export
+          ansible.builtin.command:
+            argv:
+              - borg
+              - extract
+              - "{{ paperless_borg_repository }}::{{ paperless_restore_archive }}"
+              - export
+            chdir: "{{ paperless_install_path }}"
+          when: paperless_restore_archive | length > 0
+          environment:
+            BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
 
-    - name: Create Paperless secrets directory
-      ansible.builtin.file:
-        path: "{{ paperless_secret_key_path | dirname }}"
-        state: directory
-        owner: root
-        group: root
-        mode: "0700"
+    - name: Configure Paperless application
+      block:
+        - name: Configure Paperless Docker Compose services
+          ansible.builtin.include_tasks: "{{ common_dir }}/configure-docker-compose.yml"
+          vars:
+            compose_source: "{{ playbook_dir }}/compose.yml"
+            compose_path: "{{ paperless_install_path }}"
+            compose_expected_services:
+              - broker
+              - db
+              - webserver
 
-    - name: Generate Paperless secret key
-      ansible.builtin.command:
-        argv:
-          - python3
-          - -c
-          - >-
-            import secrets, pathlib;
-            pathlib.Path({{ paperless_secret_key_path | to_json }}).write_text(secrets.token_hex(32))
-        creates: "{{ paperless_secret_key_path }}"
+        - name: Wait for Paperless HTTP response
+          ansible.builtin.uri:
+            url: http://127.0.0.1/
+            method: GET
+            follow_redirects: none
+            status_code:
+              - 200
+              - 302
+          register: paperless_http_check
+          retries: 12
+          delay: 5
+          until: paperless_http_check.status in [200, 302]
 
-    - name: Read Paperless secret key metadata
-      ansible.builtin.stat:
-        path: "{{ paperless_secret_key_path }}"
-      register: paperless_secret_key_file
+        - name: Import restored Paperless backup
+          community.docker.docker_compose_v2_exec:
+            project_src: "{{ paperless_install_path }}"
+            service: webserver
+            argv:
+              - document_importer
+              - /usr/src/paperless/export
+            tty: false
+          when: paperless_restore_archive | default('') | length > 0
 
-    - name: Check Paperless secret key
-      ansible.builtin.assert:
-        that:
-          - paperless_secret_key_file.stat.exists
-          - paperless_secret_key_file.stat.size == 64
-        fail_msg: Paperless secret key is missing or invalid.
+    - name: Configure Paperless scheduled backups
+      block:
+        - name: Configure Paperless export service
+          ansible.builtin.template:
+            src: "{{ playbook_dir }}/paperless-export.service.j2"
+            dest: /etc/systemd/system/paperless-export.service
+            mode: "0644"
+          register: paperless_export_service
 
-    - name: Secure Paperless secret key
-      ansible.builtin.file:
-        path: "{{ paperless_secret_key_path }}"
-        state: file
-        owner: root
-        group: root
-        mode: "0600"
+        - name: Configure Paperless export timer
+          ansible.builtin.copy:
+            src: "{{ playbook_dir }}/paperless-export.timer"
+            dest: /etc/systemd/system/paperless-export.timer
+            mode: "0644"
+          register: paperless_export_timer
 
-    - name: Configure Paperless Samba inbox
-      ansible.builtin.include_tasks: "{{ common_dir }}/configure-samba-host.yml"
-      vars:
-        samba_config_source: "{{ playbook_dir }}/smb.conf.j2"
-
-    - name: Configure Paperless Docker Compose services
-      ansible.builtin.include_tasks: "{{ common_dir }}/configure-docker-compose.yml"
-      vars:
-        compose_source: "{{ playbook_dir }}/compose.yml"
-        compose_path: "{{ paperless_install_path }}"
-        compose_expected_services:
-          - broker
-          - db
-          - webserver
-
-    - name: Wait for Paperless HTTP response
-      ansible.builtin.uri:
-        url: http://127.0.0.1/
-        method: GET
-        follow_redirects: none
-        status_code:
-          - 200
-          - 302
-      register: paperless_http_check
-      retries: 12
-      delay: 5
-      until: paperless_http_check.status in [200, 302]
-
-    - name: Import restored Paperless backup
-      community.docker.docker_compose_v2_exec:
-        project_src: "{{ paperless_install_path }}"
-        service: webserver
-        argv:
-          - document_importer
-          - /usr/src/paperless/export
-        tty: false
-      when: paperless_restore_archive | default('') | length > 0
-
-    - name: Configure Paperless export service
-      ansible.builtin.template:
-        src: "{{ playbook_dir }}/paperless-export.service.j2"
-        dest: /etc/systemd/system/paperless-export.service
-        mode: "0644"
-      register: paperless_export_service
-
-    - name: Configure Paperless export timer
-      ansible.builtin.copy:
-        src: "{{ playbook_dir }}/paperless-export.timer"
-        dest: /etc/systemd/system/paperless-export.timer
-        mode: "0644"
-      register: paperless_export_timer
-
-    - name: Enable Paperless export timer
-      ansible.builtin.systemd_service:
-        name: paperless-export.timer
-        enabled: true
-        daemon_reload: "{{ paperless_export_service.changed or paperless_export_timer.changed }}"
-        state: "{{ 'restarted' if paperless_export_timer.changed else 'started' }}"
+        - name: Enable Paperless export timer
+          ansible.builtin.systemd_service:
+            name: paperless-export.timer
+            enabled: true
+            daemon_reload: "{{ paperless_export_service.changed or paperless_export_timer.changed }}"
+            state: "{{ 'restarted' if paperless_export_timer.changed else 'started' }}"
