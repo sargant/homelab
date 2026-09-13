@@ -1,6 +1,9 @@
-set default-list := true
 set dotenv-load
 set dotenv-required
+
+# Show available recipes by default.
+default:
+  @just --list
 
 # Initialize the Proxmox management host with Ansible.
 init:
