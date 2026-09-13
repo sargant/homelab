@@ -75,17 +75,7 @@
         set -euo pipefail
         changed=0
 
-        printer_exists() {
-          lpstat -p 2>/dev/null | awk '{print $2}' | grep -Fxq "$1"
-        }
-
-        stale="{{ printer_queue }}_print_server"
-        if printer_exists "$stale"; then
-          lpadmin -x "$stale"
-          changed=1
-        fi
-
-        if ! printer_exists "{{ printer_queue }}"; then
+        if ! lpstat -p "{{ printer_queue }}" >/dev/null 2>&1; then
           lpadmin \
             -p "{{ printer_queue }}" \
             -E \
@@ -150,10 +140,6 @@
       ansible.builtin.shell: |
         set -euo pipefail
 
-        systemctl is-active --quiet cups
-        systemctl is-active --quiet avahi-daemon
-        [ -x "{{ brlaser_filter }}" ]
-
         device_uri="$(lpstat -v "{{ printer_queue }}" | sed 's/.*: //')"
         [ "$device_uri" = "{{ printer_device_uri }}" ]
 
@@ -168,15 +154,11 @@
               true
           } | head -n 6
         )"
-
         marker_levels="$(grep -E '^ATTR: marker-levels=[0-9]+,[0-9]+$' <<<"$wrapper_output")"
         levels="${marker_levels#ATTR: marker-levels=}"
-        toner="${levels%,*}"
-        drum="${levels#*,}"
 
         printf 'Backend: %s\n' "$device_uri"
-        printf 'Toner: %s%%\n' "$toner"
-        printf 'Drum: %s%%\n' "$drum"
+        printf 'Supplies: toner %s%%, drum %s%%\n' "${levels%,*}" "${levels#*,}"
       args:
         executable: /bin/bash
       register: verification
