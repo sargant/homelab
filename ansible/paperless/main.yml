@@ -6,7 +6,6 @@
   vars:
     paperless_install_path: /opt/paperless
     paperless_backup_mountpoint: /mnt/backup
-    paperless_borg_repository: "{{ paperless_backup_mountpoint }}/borg"
     paperless_secret_key_path: "{{ paperless_install_path }}/secrets/paperless_secret_key"
 
   pre_tasks:
