@@ -6,6 +6,10 @@ set dotenv-required
 init:
   cd ansible && ansible-playbook vm-host/main.yml
 
+# Update all known hosts and services with Ansible.
+update:
+  cd ansible && ansible-playbook site.yml
+
 # Preview infrastructure changes.
 plan:
   tofu -chdir=infra plan
