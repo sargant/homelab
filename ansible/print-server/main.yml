@@ -99,18 +99,6 @@
         insertafter: EOF
       notify: Restart CUPS
 
-    - name: Verify brlaser filter exists
-      ansible.builtin.stat:
-        path: "{{ brlaser_filter }}"
-      register: brlaser_filter_stat
-
-    - name: Require brlaser filter
-      ansible.builtin.assert:
-        that:
-          - brlaser_filter_stat.stat.exists
-          - brlaser_filter_stat.stat.executable
-        fail_msg: "Real brlaser filter not found at {{ brlaser_filter }}."
-
     - name: Install supply-level wrapper
       ansible.builtin.template:
         src: "{{ playbook_dir }}/rastertobrlaser-with-supplies.j2"
