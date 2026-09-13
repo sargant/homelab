@@ -165,8 +165,8 @@
           - 200
           - 302
       register: paperless_http_check
-      retries: 30
-      delay: 2
+      retries: 12
+      delay: 5
       until: paperless_http_check.status in [200, 302]
 
     - name: Import restored Paperless backup
