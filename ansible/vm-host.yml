@@ -28,8 +28,9 @@
     - name: Check required Proxmox storage content types
       ansible.builtin.command:
         argv:
-          - pvesm
-          - status
+          - pvesh
+          - get
+          - "/nodes/{{ ansible_facts['hostname'] }}/storage"
           - --storage
           - "{{ item.0.storage }}"
           - --content
