@@ -1,3 +1,4 @@
+set default-list := true
 set dotenv-load
 set dotenv-required
 
@@ -16,7 +17,7 @@ apply:
 # Configure the print server after verifying its infrastructure is converged.
 print-server:
   tofu -chdir=infra plan -target=proxmox_virtual_environment_container.print_server -detailed-exitcode -compact-warnings
-  cd ansible && ansible-playbook print-server.yml
+  cd ansible && ansible-playbook print-server/main.yml
 
 # Configure the Tailscale router after verifying its infrastructure is converged.
 tailscale:

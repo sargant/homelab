@@ -29,26 +29,14 @@
       ansible.builtin.apt:
         name:
           - cups
-          - cups-client
-          - cups-ipp-utils
           - avahi-daemon
           - avahi-utils
           - printer-driver-brlaser
           - snmp
-          - netcat-openbsd
-          - curl
         state: present
         install_recommends: false
         update_cache: true
         cache_valid_time: 3600
-
-    - name: Remove unused CUPS recommended services
-      ansible.builtin.apt:
-        name:
-          - colord
-          - cups-browsed
-          - ipp-usb
-        state: absent
 
     - name: Enable print services
       ansible.builtin.systemd_service:
@@ -59,58 +47,18 @@
         - cups
         - avahi-daemon
 
-    - name: Resolve print server DNS
-      ansible.builtin.command:
-        argv: [getent, hosts, "{{ ansible_host }}"]
-      changed_when: false
-
-    - name: Resolve physical printer DNS
-      ansible.builtin.command:
-        argv: [getent, hosts, "{{ printer_host }}"]
-      changed_when: false
-
     - name: Check raw printer port
       ansible.builtin.wait_for:
         host: "{{ printer_host }}"
         port: 9100
         timeout: 3
 
-    - name: Read printer supply levels
-      ansible.builtin.shell: |
-        set -e
-        toner="$(snmpget -v2c -c public -Oqv "{{ printer_host }}" "{{ toner_oid }}")"
-        drum_max="$(snmpget -v2c -c public -Oqv "{{ printer_host }}" "{{ drum_max_oid }}")"
-        drum_level="$(snmpget -v2c -c public -Oqv "{{ printer_host }}" "{{ drum_level_oid }}")"
-
-        case "$toner:$drum_max:$drum_level" in
-          *[!0-9:]*|:*|*::*|*:) exit 1 ;;
-        esac
-        [ "$drum_max" -gt 0 ]
-
-        printf '%s:%s:%s\n' "$toner" "$drum_max" "$drum_level"
-      args:
-        executable: /bin/bash
-      register: supply_values
-      changed_when: false
-
-    - name: Calculate printer supply percentages
-      ansible.builtin.set_fact:
-        toner_percent: "{{ supply_values.stdout.split(':')[0] | int }}"
-        drum_percent: >-
-          {{
-            (
-              (supply_values.stdout.split(':')[2] | int) * 100 /
-              (supply_values.stdout.split(':')[1] | int)
-            ) | int
-          }}
-
-    - name: Configure CUPS for LAN and printer sharing
+    - name: Configure CUPS
       ansible.builtin.command:
         argv:
           - cupsctl
           - --remote-any
           - --share-printers
-          - --no-debug-logging
       changed_when: false
 
     - name: Configure CUPS server alias
@@ -121,72 +69,18 @@
         insertafter: EOF
       notify: Restart CUPS
 
-    - name: Verify brlaser filter exists
-      ansible.builtin.stat:
-        path: "{{ brlaser_filter }}"
-      register: brlaser_filter_stat
-
-    - name: Require brlaser filter
-      ansible.builtin.assert:
-        that:
-          - brlaser_filter_stat.stat.exists
-          - brlaser_filter_stat.stat.executable
-        fail_msg: "Real brlaser filter not found at {{ brlaser_filter }}."
-
     - name: Install supply-level wrapper
-      ansible.builtin.copy:
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/rastertobrlaser-with-supplies.j2"
         dest: "{{ supply_wrapper }}"
         mode: "0755"
-        content: |
-          #!/bin/sh
-
-          PRINTER="{{ printer_host }}"
-          COMMUNITY="public"
-
-          TONER_OID="{{ toner_oid }}"
-          DRUM_MAX_OID="{{ drum_max_oid }}"
-          DRUM_LEVEL_OID="{{ drum_level_oid }}"
-
-          toner=$(
-            /usr/bin/snmpget -v2c -c "$COMMUNITY" -Oqv "$PRINTER" "$TONER_OID" 2>/dev/null
-          )
-          drum_max=$(
-            /usr/bin/snmpget -v2c -c "$COMMUNITY" -Oqv "$PRINTER" "$DRUM_MAX_OID" 2>/dev/null
-          )
-          drum_level=$(
-            /usr/bin/snmpget -v2c -c "$COMMUNITY" -Oqv "$PRINTER" "$DRUM_LEVEL_OID" 2>/dev/null
-          )
-
-          case "$toner" in
-            ''|*[!0-9]*) toner=-1 ;;
-          esac
-
-          case "$drum_max:$drum_level" in
-            *[!0-9:]*|:*|*:) drum=-1 ;;
-            *)
-              if [ "$drum_max" -gt 0 ]; then
-                drum=$((drum_level * 100 / drum_max))
-              else
-                drum=-1
-              fi
-              ;;
-          esac
-
-          echo 'ATTR: marker-names="Black Toner Cartridge","Drum Unit"' >&2
-          echo 'ATTR: marker-types=toner,opc' >&2
-          echo 'ATTR: marker-colors=#000000,none' >&2
-          echo 'ATTR: marker-low-levels=10,10' >&2
-          echo 'ATTR: marker-high-levels=100,100' >&2
-          echo "ATTR: marker-levels=${toner},${drum}" >&2
-
-          exec "{{ brlaser_filter }}" "$@"
-      notify: Restart CUPS
 
     - name: Configure printer queue and PPD
       ansible.builtin.shell: |
         set -euo pipefail
         changed=0
 
+        # lpstat -p "$name" does not reliably indicate whether that exact queue exists.
         printer_exists() {
           lpstat -p 2>/dev/null | awk '{print $2}' | grep -Fxq "$1"
         }
@@ -197,6 +91,7 @@
           changed=1
         fi
 
+        # Only specify the driver when creating the queue; -m regenerates the PPD.
         if ! printer_exists "{{ printer_queue }}"; then
           lpadmin \
             -p "{{ printer_queue }}" \
@@ -210,15 +105,16 @@
 
         current_uri="$(lpstat -v "{{ printer_queue }}" | sed 's/.*: //')"
         if [ "$current_uri" != "{{ printer_device_uri }}" ]; then
-          lpadmin -p "{{ printer_queue }}" -v "{{ printer_device_uri }}"
           changed=1
         fi
 
-        lpadmin -p "{{ printer_queue }}" -D "{{ printer_name }}" -L "print-server"
-        lpadmin -p "{{ printer_queue }}" -o cupsSNMPSupplies=false
-        lpadmin -d "{{ printer_queue }}"
-        cupsaccept "{{ printer_queue }}"
-        cupsenable "{{ printer_queue }}"
+        lpadmin \
+          -p "{{ printer_queue }}" \
+          -E \
+          -D "{{ printer_name }}" \
+          -L "print-server" \
+          -v "{{ printer_device_uri }}" \
+          -o cupsSNMPSupplies=false
 
         ppd="{{ printer_ppd }}"
         [ -f "$ppd" ]
@@ -231,16 +127,7 @@
           changed=1
         fi
 
-        if grep -q '^\*cupsSNMPSupplies:' "$ppd"; then
-          if ! grep -q '^\*cupsSNMPSupplies: False$' "$ppd"; then
-            sed -i 's/^\*cupsSNMPSupplies:.*/\*cupsSNMPSupplies: False/' "$ppd"
-            changed=1
-          fi
-        else
-          printf '*cupsSNMPSupplies: False\n' >> "$ppd"
-          changed=1
-        fi
-
+        # Preserve a friendly printer name in the iOS/AirPrint UI.
         if ! grep -q '^\*NickName: "Brother HL-1200 series via CUPS"$' "$ppd"; then
           sed -i \
             's#^\*NickName: ".*"#*NickName: "Brother HL-1200 series via CUPS"#' \
@@ -262,9 +149,6 @@
       ansible.builtin.shell: |
         set -euo pipefail
 
-        systemctl is-active --quiet cups
-        systemctl is-active --quiet avahi-daemon
-
         device_uri="$(lpstat -v "{{ printer_queue }}" | sed 's/.*: //')"
         [ "$device_uri" = "{{ printer_device_uri }}" ]
 
@@ -273,19 +157,17 @@
         grep -q '^\*NickName: "Brother HL-1200 series via CUPS"$' "{{ printer_ppd }}"
 
         wrapper_output="$(
-          {
-            printf '' |
-              "{{ supply_wrapper }}" 1 root supply-check 1 '' 2>&1 ||
-              true
-          } | head -n 6
+          "{{ supply_wrapper }}" 1 root supply-check 1 '' </dev/null 2>&1 || true
         )"
 
-        expected='ATTR: marker-levels={{ toner_percent }},{{ drum_percent }}'
-        grep -Fq "$expected" <<<"$wrapper_output"
+        marker_levels="$(grep -m1 -E '^ATTR: marker-levels=[0-9]+,[0-9]+$' <<<"$wrapper_output")"
+        levels="${marker_levels#ATTR: marker-levels=}"
+        toner="${levels%,*}"
+        drum="${levels#*,}"
 
         printf 'Backend: %s\n' "$device_uri"
-        printf 'Toner: {{ toner_percent }}%%\n'
-        printf 'Drum: {{ drum_percent }}%%\n'
+        printf 'Toner: %s%%\n' "$toner"
+        printf 'Drum: %s%%\n' "$drum"
       args:
         executable: /bin/bash
       register: verification
