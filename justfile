@@ -3,7 +3,7 @@ set dotenv-required
 
 # Initialize the Proxmox management host with Ansible.
 init:
-  ansible-playbook ansible/vm-host.yml
+  ansible-playbook ansible/vm-host/main.yml
 
 # Preview infrastructure changes.
 plan:
