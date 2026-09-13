@@ -42,7 +42,6 @@
           - ca-certificates
           - curl
           - ethtool
-          - jq
           - procps
         state: present
         update_cache: true
@@ -121,38 +120,44 @@
         state: started
 
     - name: Read initial Tailscale state
-      ansible.builtin.shell: |
-        set -o pipefail
-        tailscale status --json 2>/dev/null | jq -r '(.BackendState // "Unknown") + ":" + ((.Self.Online // false) | tostring)' || true
-      args:
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - status
+          - --json
       register: tailscale_initial_status
       changed_when: false
+      failed_when: false
 
     - name: Restart stale Tailscale daemon
       ansible.builtin.systemd_service:
         name: tailscaled
         state: restarted
-      when: tailscale_initial_status.stdout | trim == "Running:false"
+      when:
+        - tailscale_initial_status.rc == 0
+        - (tailscale_initial_status.stdout | from_json).get('BackendState', 'Unknown') == 'Running'
+        - not (tailscale_initial_status.stdout | from_json).get('Self', {}).get('Online', false)
 
     - name: Wait for Tailscale backend state to settle
-      ansible.builtin.shell: |
-        set -o pipefail
-        tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"' || true
-      args:
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - status
+          - --json
       register: tailscale_status
       changed_when: false
+      failed_when: false
       retries: 10
       delay: 2
       until: >-
-        tailscale_status.stdout | trim in
-        ["Running", "NeedsLogin", "NeedsMachineAuth", "NoState", "Stopped"]
+        tailscale_status.rc == 0
+        and (tailscale_status.stdout | from_json).get('BackendState', 'Unknown')
+          in ['Running', 'NeedsLogin', 'NeedsMachineAuth', 'NoState', 'Stopped']
 
     - name: Require device approval when Tailscale is waiting for machine authorization
       ansible.builtin.assert:
         that:
-          - tailscale_status.stdout | trim != "NeedsMachineAuth"
+          - (tailscale_status.stdout | from_json).get('BackendState', 'Unknown') != 'NeedsMachineAuth'
         fail_msg: |
           ACTION REQUIRED: this machine is waiting for Tailscale device approval.
 
@@ -166,7 +171,9 @@
         fail_msg: >-
           TAILSCALE_AUTH_KEY must be set in the Ansible controller environment
           when this node needs to join the tailnet.
-      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+      when: >-
+        (tailscale_status.stdout | from_json).get('BackendState', 'Unknown')
+        in ['NeedsLogin', 'NoState']
 
     - name: Authenticate Tailscale
       ansible.builtin.shell: >-
@@ -178,40 +185,48 @@
       environment:
         TS_AUTH_KEY: "{{ tailscale_auth_key }}"
       no_log: true
-      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+      when: >-
+        (tailscale_status.stdout | from_json).get('BackendState', 'Unknown')
+        in ['NeedsLogin', 'NoState']
 
     - name: Wait for post-enrollment Tailscale state to settle
-      ansible.builtin.shell: |
-        set -o pipefail
-        tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"' || true
-      args:
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - status
+          - --json
       register: tailscale_post_enrollment_status
       changed_when: false
+      failed_when: false
       retries: 10
       delay: 2
       until: >-
-        tailscale_post_enrollment_status.stdout | trim in
-        ["Running", "NeedsMachineAuth"]
-      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+        tailscale_post_enrollment_status.rc == 0
+        and (tailscale_post_enrollment_status.stdout | from_json).get('BackendState', 'Unknown')
+          in ['Running', 'NeedsMachineAuth']
+      when: >-
+        (tailscale_status.stdout | from_json).get('BackendState', 'Unknown')
+        in ['NeedsLogin', 'NoState']
 
     - name: Require device approval after Tailscale enrollment
       ansible.builtin.assert:
         that:
-          - tailscale_post_enrollment_status.stdout | trim != "NeedsMachineAuth"
+          - (tailscale_post_enrollment_status.stdout | from_json).get('BackendState', 'Unknown') != 'NeedsMachineAuth'
         fail_msg: |
           ACTION REQUIRED: this machine joined the tailnet but is waiting for Tailscale device approval.
 
           In the Tailscale admin console, approve the pending {{ system_hostname }} machine,
           then rerun this playbook.
-      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+      when: >-
+        (tailscale_status.stdout | from_json).get('BackendState', 'Unknown')
+        in ['NeedsLogin', 'NoState']
 
     - name: Start existing Tailscale identity
       ansible.builtin.command:
         argv:
           - tailscale
           - up
-      when: tailscale_status.stdout | trim == "Stopped"
+      when: (tailscale_status.stdout | from_json).get('BackendState', 'Unknown') == 'Stopped'
 
     - name: Configure Tailscale settings
       ansible.builtin.command:
@@ -238,16 +253,20 @@
         state: "{{ 'restarted' if tailscale_web_unit.changed else 'started' }}"
 
     - name: Wait for Tailscale to be online
-      ansible.builtin.shell: |
-        set -o pipefail
-        tailscale status --json | jq -r '(.BackendState // "Unknown") + ":" + ((.Self.Online // false) | tostring)'
-      args:
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - status
+          - --json
       register: tailscale_final_status
       changed_when: false
+      failed_when: false
       retries: 10
       delay: 2
-      until: tailscale_final_status.stdout | trim == "Running:true"
+      until: >-
+        tailscale_final_status.rc == 0
+        and (tailscale_final_status.stdout | from_json).get('BackendState', 'Unknown') == 'Running'
+        and (tailscale_final_status.stdout | from_json).get('Self', {}).get('Online', false)
 
     - name: Read Tailscale IPv4 address
       ansible.builtin.command:
