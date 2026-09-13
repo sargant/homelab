@@ -152,6 +152,7 @@
 
         systemctl is-active --quiet cups
         systemctl is-active --quiet avahi-daemon
+        [ -x "{{ brlaser_filter }}" ]
 
         device_uri="$(lpstat -v "{{ printer_queue }}" | sed 's/.*: //')"
         [ "$device_uri" = "{{ printer_device_uri }}" ]
