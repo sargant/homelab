@@ -29,8 +29,11 @@
       Expected host {{ system_hostname }}, found {{ ansible_hostname }}.
   when: system_hostname is defined
 
-- name: Configure SSH
-  ansible.builtin.import_tasks: configure-ssh.yml
+- name: Sync GitHub SSH keys
+  ansible.builtin.import_tasks: sync-github-ssh-keys.yml
+
+- name: Configure SSH authentication
+  ansible.builtin.import_tasks: configure-ssh-auth.yml
 
 - name: Configure shell
   ansible.builtin.import_tasks: configure-shell.yml
