@@ -28,7 +28,7 @@
       - "{{ borg_repository }}"
   register: borg_repository_check
   changed_when: false
-  failed_when: borg_repository_check.rc > 1
+  failed_when: borg_repository_check.rc != 0
   environment:
     BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
 
