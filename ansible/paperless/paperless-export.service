@@ -2,6 +2,7 @@
 Description=Paperless document export
 Requires=docker.service
 After=docker.service
+OnSuccess=paperless-borg.service
 
 [Service]
 Type=oneshot
