@@ -75,17 +75,13 @@
         set -euo pipefail
         changed=0
 
-        printer_exists() {
-          lpstat -p 2>/dev/null | awk '{print $2}' | grep -Fxq "$1"
-        }
-
         stale="{{ printer_queue }}_print_server"
-        if printer_exists "$stale"; then
+        if lpstat -p "$stale" >/dev/null 2>&1; then
           lpadmin -x "$stale"
           changed=1
         fi
 
-        if ! printer_exists "{{ printer_queue }}"; then
+        if ! lpstat -p "{{ printer_queue }}" >/dev/null 2>&1; then
           lpadmin \
             -p "{{ printer_queue }}" \
             -E \
