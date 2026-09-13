@@ -29,14 +29,10 @@
       ansible.builtin.apt:
         name:
           - cups
-          - cups-client
-          - cups-ipp-utils
           - avahi-daemon
           - avahi-utils
           - printer-driver-brlaser
           - snmp
-          - netcat-openbsd
-          - curl
         state: present
         install_recommends: false
         update_cache: true
