@@ -14,17 +14,17 @@
 
   pre_tasks:
     - name: Trust SSH host key
-      ansible.builtin.import_tasks: "{{ tasks_dir }}/trust-host.yml"
+      ansible.builtin.import_tasks: "{{ common_dir }}/trust-host.yml"
 
     - name: Bootstrap Debian
-      ansible.builtin.import_tasks: "{{ tasks_dir }}/bootstrap-debian.yml"
+      ansible.builtin.import_tasks: "{{ common_dir }}/bootstrap-debian.yml"
 
   tasks:
     - name: Install Docker
-      ansible.builtin.import_tasks: "{{ tasks_dir }}/install-docker.yml"
+      ansible.builtin.import_tasks: "{{ common_dir }}/install-docker.yml"
 
     - name: Configure Paperless backup NFS mount
-      ansible.builtin.import_tasks: "{{ tasks_dir }}/configure-nfs-mount.yml"
+      ansible.builtin.import_tasks: "{{ common_dir }}/configure-nfs-mount.yml"
       vars:
         nfs_source: "{{ paperless_backup_source }}"
         nfs_mountpoint: "{{ paperless_backup_mount }}"
