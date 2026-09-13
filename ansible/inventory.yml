@@ -5,6 +5,7 @@ all:
     ansible_python_interpreter: /usr/bin/python3
     github_ssh_user: sargant
     lan_subnet: 192.168.37.0/24
+    tasks_dir: "{{ inventory_dir }}/tasks"
 
   hosts:
     vm_host:
