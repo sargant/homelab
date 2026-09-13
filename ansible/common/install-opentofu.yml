@@ -58,10 +58,3 @@
     name: tofu
     state: present
     update_cache: true
-
-- name: Verify OpenTofu
-  ansible.builtin.command:
-    argv:
-      - tofu
-      - version
-  changed_when: false

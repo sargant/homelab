@@ -56,18 +56,3 @@
     name: docker
     enabled: true
     state: started
-
-- name: Verify Docker Engine
-  ansible.builtin.command:
-    argv:
-      - docker
-      - version
-  changed_when: false
-
-- name: Verify Docker Compose
-  ansible.builtin.command:
-    argv:
-      - docker
-      - compose
-      - version
-  changed_when: false

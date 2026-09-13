@@ -13,80 +13,32 @@
     name: nfs-common
     state: present
 
-- name: Create NFS mountpoint
-  ansible.builtin.file:
-    path: "{{ nfs_mountpoint }}"
-    state: directory
-
-- name: Read current NFS mount
-  ansible.builtin.command:
-    argv:
-      - findmnt
-      - -n
-      - -o
-      - SOURCE
-      - "{{ nfs_mountpoint }}"
-  register: nfs_current_mount
-  changed_when: false
-  failed_when: false
-
-- name: Reject unexpected NFS mount
-  ansible.builtin.assert:
-    that:
-      - nfs_current_mount.rc != 0 or nfs_current_mount.stdout | trim == nfs_source
-    fail_msg: >-
-      {{ nfs_mountpoint }} is mounted from {{ nfs_current_mount.stdout | trim }},
-      expected {{ nfs_source }}.
-
-- name: Configure NFS mount
-  ansible.builtin.lineinfile:
-    path: /etc/fstab
-    regexp: '^\S+\s+{{ nfs_mountpoint | regex_escape }}\s+'
-    line: >-
-      {{ nfs_source }} {{ nfs_mountpoint }} nfs4
-      {{ nfs_mount_options | default('defaults,_netdev') }} 0 0
-    state: present
-  register: nfs_fstab
-
 - name: Mount NFS storage
-  ansible.builtin.command:
-    argv:
-      - mount
-      - "{{ nfs_mountpoint }}"
-  when: nfs_current_mount.rc != 0
-  changed_when: true
+  ansible.posix.mount:
+    src: "{{ nfs_source }}"
+    path: "{{ nfs_mountpoint }}"
+    fstype: nfs4
+    opts: "{{ nfs_mount_options | default('defaults,_netdev') }}"
+    state: mounted
 
-- name: Remount NFS storage after configuration change
-  ansible.builtin.command:
-    argv:
-      - mount
-      - -o
-      - remount
-      - "{{ nfs_mountpoint }}"
-  when:
-    - nfs_current_mount.rc == 0
-    - nfs_fstab.changed
-  changed_when: true
-
-- name: Verify NFS mount
+- name: Read NFS mount source
   ansible.builtin.command:
     argv:
       - findmnt
       - -n
-      - -t
-      - nfs4
       - -o
       - SOURCE
       - "{{ nfs_mountpoint }}"
-  register: nfs_mount_check
+  register: nfs_mount_source
   changed_when: false
 
-- name: Check NFS source
+- name: Check NFS mount source
   ansible.builtin.assert:
     that:
-      - nfs_mount_check.stdout | trim == nfs_source
+      - nfs_mount_source.stdout | trim == nfs_source
     fail_msg: >-
-      {{ nfs_mountpoint }} is not mounted from {{ nfs_source }}.
+      {{ nfs_mountpoint }} is mounted from {{ nfs_mount_source.stdout | trim }},
+      expected {{ nfs_source }}.
 
 - name: Verify NFS read/write access
   block:
