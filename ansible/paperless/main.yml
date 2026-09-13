@@ -33,6 +33,11 @@
     - name: Install Docker
       ansible.builtin.include_tasks: "{{ common_dir }}/install-docker.yml"
 
+    - name: Check for existing Paperless database
+      community.docker.docker_volume_info:
+        name: paperless_pgdata
+      register: paperless_database_volume
+
     - name: Set Paperless memory overcommit
       ansible.posix.sysctl:
         name: vm.overcommit_memory
@@ -57,6 +62,45 @@
         owner: "1000"
         group: "1000"
         mode: "0755"
+
+    - name: Find latest Paperless backup
+      ansible.builtin.command:
+        argv:
+          - borg
+          - list
+          - --last
+          - "1"
+          - --format
+          - "{archive}{NL}"
+          - "{{ paperless_borg_repository }}"
+      register: paperless_backup_list
+      changed_when: false
+      when: not paperless_database_volume.exists
+      environment:
+        BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
+
+    - name: Select Paperless restore archive
+      ansible.builtin.set_fact:
+        paperless_restore_archive: "{{ paperless_backup_list.stdout | trim }}"
+      when: not paperless_database_volume.exists
+
+    - name: Clear Paperless export directory before restore
+      ansible.builtin.file:
+        path: "{{ paperless_install_path }}/export"
+        state: absent
+      when: paperless_restore_archive | default('') | length > 0
+
+    - name: Restore latest Paperless export
+      ansible.builtin.command:
+        argv:
+          - borg
+          - extract
+          - "{{ paperless_borg_repository }}::{{ paperless_restore_archive }}"
+          - export
+        chdir: "{{ paperless_install_path }}"
+      when: paperless_restore_archive | default('') | length > 0
+      environment:
+        BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
 
     - name: Create Paperless secrets directory
       ansible.builtin.file:
@@ -123,6 +167,16 @@
       retries: 30
       delay: 2
       until: paperless_http_check.status in [200, 302]
+
+    - name: Import restored Paperless backup
+      community.docker.docker_compose_v2_exec:
+        project_src: "{{ paperless_install_path }}"
+        service: webserver
+        argv:
+          - document_importer
+          - /usr/src/paperless/export
+        tty: false
+      when: paperless_restore_archive | default('') | length > 0
 
     - name: Configure Paperless export service
       ansible.builtin.template:
