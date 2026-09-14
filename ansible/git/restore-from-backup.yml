@@ -3,7 +3,6 @@
   ansible.builtin.include_tasks: "{{ common_dir }}/prepare-borg-restore.yml"
   vars:
     borg_restore_marker_path: "{{ gogs_restore_marker_path }}"
-    borg_restore_pending: "{{ gogs_restore_marker.stat.exists }}"
     borg_restore_repository: "{{ gogs_borg_repository }}"
 
 - name: Restore Gogs backup
