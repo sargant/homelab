@@ -1,21 +1,3 @@
-resource "unifi_client" "paperless" {
-  mac              = local.hosts.paperless.mac
-  name             = "Paperless"
-  fixed_ip         = local.hosts.paperless.ip
-  local_dns_record = local.hosts.paperless.dns
-}
-
-resource "time_sleep" "paperless_dhcp" {
-  create_duration = "10s"
-
-  triggers = {
-    client_id        = unifi_client.paperless.id
-    mac              = unifi_client.paperless.mac
-    fixed_ip         = unifi_client.paperless.fixed_ip
-    local_dns_record = unifi_client.paperless.local_dns_record
-  }
-}
-
 resource "proxmox_virtual_environment_file" "paperless_cloud_init" {
   content_type = "snippets"
   datastore_id = "local"
@@ -97,6 +79,50 @@ resource "proxmox_virtual_environment_vm" "paperless" {
   serial_device {
     device = "socket"
   }
+}
 
-  depends_on = [time_sleep.paperless_dhcp]
+# UniFi Network 10.x can observe a DHCP client before it creates the legacy
+# rest/user record that the provider expects when taking over a MAC. Bootstrap
+# that record after first boot, then let unifi_client own it normally.
+resource "terraform_data" "paperless_unifi_bootstrap" {
+  triggers_replace = [
+    proxmox_virtual_environment_vm.paperless.id,
+    local.hosts.paperless.mac,
+    local.hosts.paperless.ip,
+    local.hosts.paperless.dns,
+  ]
+
+  provisioner "local-exec" {
+    command = "python3 ${path.module}/scripts/bootstrap-unifi-client.py"
+
+    environment = {
+      UNIFI_CLIENT_MAC  = local.hosts.paperless.mac
+      UNIFI_CLIENT_IP   = local.hosts.paperless.ip
+      UNIFI_CLIENT_DNS  = local.hosts.paperless.dns
+      UNIFI_CLIENT_NAME = "Paperless"
+    }
+  }
+}
+
+resource "unifi_client" "paperless" {
+  mac              = local.hosts.paperless.mac
+  name             = "Paperless"
+  fixed_ip         = local.hosts.paperless.ip
+  local_dns_record = local.hosts.paperless.dns
+
+  depends_on = [terraform_data.paperless_unifi_bootstrap]
+}
+
+# The first boot receives an ordinary DHCP lease before the reservation exists.
+# Reboot once UniFi owns the fixed lease so the guest comes back on its final IP.
+resource "terraform_data" "paperless_dhcp_refresh" {
+  triggers_replace = [
+    proxmox_virtual_environment_vm.paperless.id,
+    unifi_client.paperless.id,
+    local.hosts.paperless.ip,
+  ]
+
+  provisioner "local-exec" {
+    command = "qm reboot ${proxmox_virtual_environment_vm.paperless.vm_id}"
+  }
 }
