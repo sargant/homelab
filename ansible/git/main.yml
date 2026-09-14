@@ -67,6 +67,50 @@
             state: absent
           when: gogs_archive.path is defined
 
+    - name: Create Gogs configuration directory
+      ansible.builtin.file:
+        path: /home/git/gogs/custom/conf
+        state: directory
+        owner: git
+        group: git
+        mode: "0755"
+
+    - name: Generate Gogs secret key
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - >-
+            import secrets, pathlib;
+            pathlib.Path('/home/git/gogs/custom/conf/secret_key').write_text(secrets.token_urlsafe(32))
+        creates: /home/git/gogs/custom/conf/secret_key
+
+    - name: Secure Gogs secret key
+      ansible.builtin.file:
+        path: /home/git/gogs/custom/conf/secret_key
+        state: file
+        owner: git
+        group: git
+        mode: "0600"
+
+    - name: Read Gogs secret key
+      ansible.builtin.slurp:
+        src: /home/git/gogs/custom/conf/secret_key
+      register: gogs_secret_key_file
+
+    - name: Set Gogs secret key
+      ansible.builtin.set_fact:
+        gogs_secret_key: "{{ gogs_secret_key_file.content | b64decode | trim }}"
+
+    - name: Configure Gogs
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/assets/app.ini.j2"
+        dest: /home/git/gogs/custom/conf/app.ini
+        owner: git
+        group: git
+        mode: "0600"
+      register: gogs_config
+
     - name: Configure Gogs service
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/assets/gogs.service"
@@ -79,9 +123,9 @@
         name: gogs
         enabled: true
         daemon_reload: "{{ gogs_service.changed }}"
-        state: "{{ 'restarted' if (gogs_install.changed | default(false)) or gogs_service.changed else 'started' }}"
+        state: "{{ 'restarted' if (gogs_install.changed | default(false)) or gogs_config.changed or gogs_service.changed else 'started' }}"
 
-    - name: Wait for Gogs HTTP response
+    - name: Wait for configured Gogs HTTP response
       ansible.builtin.uri:
         url: http://localhost:3000/
         method: GET
@@ -89,5 +133,9 @@
         status_code:
           - 200
           - 302
+      register: gogs_http
+      until:
+        - gogs_http.status in [200, 302]
+        - "'/install' not in (gogs_http.location | default(''))"
       retries: 12
       delay: 5
