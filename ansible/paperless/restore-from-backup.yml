@@ -1,0 +1,52 @@
+---
+- name: Reset Paperless before restore
+  community.docker.docker_compose_v2:
+    project_src: "{{ paperless_install_path }}"
+    state: absent
+    remove_volumes: true
+
+- name: Clear Paperless export directory before restore
+  ansible.builtin.file:
+    path: "{{ paperless_install_path }}/export"
+    state: absent
+
+- name: Restore Paperless export
+  ansible.builtin.command:
+    argv:
+      - borg
+      - extract
+      - "{{ paperless_borg_repository }}::{{ paperless_restore_archive }}"
+      - export
+    chdir: "{{ paperless_install_path }}"
+  environment:
+    BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
+
+- name: Configure Paperless Docker Compose services after restore
+  ansible.builtin.include_tasks: "{{ common_dir }}/configure-docker-compose.yml"
+  vars:
+    compose_source: "{{ playbook_dir }}/assets/compose.yml"
+    compose_path: "{{ paperless_install_path }}"
+    compose_expected_services:
+      - broker
+      - db
+      - webserver
+
+- name: Wait for Paperless HTTP response after restore
+  ansible.builtin.uri:
+    url: http://localhost/
+    method: GET
+    follow_redirects: none
+    status_code:
+      - 200
+      - 302
+  retries: 12
+  delay: 5
+
+- name: Import restored Paperless backup
+  community.docker.docker_compose_v2_exec:
+    project_src: "{{ paperless_install_path }}"
+    service: webserver
+    argv:
+      - document_importer
+      - /usr/src/paperless/export
+    tty: false
