@@ -35,3 +35,8 @@ tailscale:
 paperless:
   tofu -chdir=infra plan -target=proxmox_virtual_environment_vm.paperless -detailed-exitcode -compact-warnings
   cd ansible && ansible-playbook paperless/main.yml
+
+# Configure the Gogs host after verifying its infrastructure is converged.
+git:
+  tofu -chdir=infra plan -target=module.git -detailed-exitcode -compact-warnings
+  cd ansible && ansible-playbook git/main.yml

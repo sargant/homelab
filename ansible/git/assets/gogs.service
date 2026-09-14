@@ -1,0 +1,17 @@
+[Unit]
+Description=Gogs Git service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=git
+Group=git
+WorkingDirectory=/home/git/gogs
+Environment=HOME=/home/git
+Environment=USER=git
+ExecStart=/home/git/gogs/gogs web
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -3,3 +3,4 @@
 - ansible.builtin.import_playbook: tailscale/main.yml
 - ansible.builtin.import_playbook: print-server/main.yml
 - ansible.builtin.import_playbook: paperless/main.yml
+- ansible.builtin.import_playbook: git/main.yml

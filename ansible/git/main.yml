@@ -1,0 +1,79 @@
+---
+- name: Configure Gogs host
+  hosts: git
+  gather_facts: false
+
+  vars:
+    gogs_version: "0.14.3"
+    gogs_archive_name: "gogs_v{{ gogs_version }}_linux_amd64.tar.gz"
+    gogs_archive_path: "/tmp/{{ gogs_archive_name }}"
+    gogs_archive_url: "https://github.com/gogs/gogs/releases/download/v{{ gogs_version }}/{{ gogs_archive_name }}"
+    gogs_archive_checksum: "sha256:c27fbd8337ebd661929389f5237bf601e09958d514835c99fad3b904c63bedb2"
+    gogs_home: /home/git
+    gogs_install_path: "{{ gogs_home }}/gogs"
+
+  pre_tasks:
+    - name: Trust SSH host key
+      ansible.builtin.include_tasks: "{{ common_dir }}/trust-host.yml"
+
+    - name: Bootstrap Debian
+      ansible.builtin.include_tasks: "{{ common_dir }}/bootstrap-debian.yml"
+
+  tasks:
+    - name: Install Gogs dependencies
+      ansible.builtin.apt:
+        name:
+          - git
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create Git service user
+      ansible.builtin.user:
+        name: git
+        home: "{{ gogs_home }}"
+        create_home: true
+        shell: /bin/bash
+        system: true
+
+    - name: Download Gogs
+      ansible.builtin.get_url:
+        url: "{{ gogs_archive_url }}"
+        dest: "{{ gogs_archive_path }}"
+        checksum: "{{ gogs_archive_checksum }}"
+        mode: "0644"
+
+    - name: Install Gogs
+      ansible.builtin.unarchive:
+        src: "{{ gogs_archive_path }}"
+        dest: "{{ gogs_home }}"
+        remote_src: true
+        owner: git
+        group: git
+        creates: "{{ gogs_install_path }}/gogs"
+      register: gogs_install
+
+    - name: Configure Gogs service
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/assets/gogs.service"
+        dest: /etc/systemd/system/gogs.service
+        mode: "0644"
+      register: gogs_service
+
+    - name: Enable Gogs service
+      ansible.builtin.systemd_service:
+        name: gogs
+        enabled: true
+        daemon_reload: "{{ gogs_service.changed }}"
+        state: "{{ 'restarted' if gogs_install.changed or gogs_service.changed else 'started' }}"
+
+    - name: Wait for Gogs HTTP response
+      ansible.builtin.uri:
+        url: http://localhost:3000/
+        method: GET
+        follow_redirects: none
+        status_code:
+          - 200
+          - 302
+      retries: 12
+      delay: 5
