@@ -6,6 +6,6 @@ module "tailscale" {
   vm_id            = 1021
   template_file_id = proxmox_download_file.debian_13.id
 
-  ipv6_address      = "auto"
+  ipv6_address       = "auto"
   device_passthrough = ["/dev/net/tun"]
 }
