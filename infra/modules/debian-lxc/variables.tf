@@ -1,15 +1,12 @@
 variable "host" {
   type = object({
-    hostname = string
-    mac      = string
-    ip       = string
-    dns      = string
-    vm_id    = number
+    hostname     = string
+    display_name = string
+    mac          = string
+    ip           = string
+    dns          = string
+    vm_id        = number
   })
-}
-
-variable "display_name" {
-  type = string
 }
 
 variable "debian_template_id" {
