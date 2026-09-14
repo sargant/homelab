@@ -1,0 +1,235 @@
+---
+- name: Configure Gogs host
+  hosts: git
+  gather_facts: false
+
+  vars:
+    gogs_version: "0.14.3"
+    gogs_install_path: /home/git/gogs
+    gogs_repo_path: /home/git/repositories
+    gogs_backup_path: /var/backups/gogs
+    gogs_borg_repository: /mnt/backup/borg
+    gogs_restore_marker_path: "{{ gogs_install_path }}/.restore-pending"
+
+  pre_tasks:
+    - name: Trust SSH host key
+      ansible.builtin.include_tasks: "{{ common_dir }}/trust-host.yml"
+
+    - name: Bootstrap Debian
+      ansible.builtin.include_tasks: "{{ common_dir }}/bootstrap-debian.yml"
+
+  tasks:
+    - name: Install Gogs dependencies
+      ansible.builtin.apt:
+        name:
+          - git
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create Git service user
+      ansible.builtin.user:
+        name: git
+        home: /home/git
+        create_home: true
+        shell: /bin/bash
+        system: true
+
+    - name: Check whether Gogs is installed
+      ansible.builtin.stat:
+        path: "{{ gogs_install_path }}/gogs"
+      register: gogs_binary
+
+    - name: Check installed Gogs version
+      ansible.builtin.command:
+        argv:
+          - "{{ gogs_install_path }}/gogs"
+          - --version
+      register: gogs_installed_version
+      changed_when: false
+      when: gogs_binary.stat.exists
+
+    - name: Install Gogs
+      when: >-
+        not gogs_binary.stat.exists
+        or (gogs_installed_version.stdout | default('') | trim)
+           != ('Gogs version ' ~ gogs_version)
+      block:
+        - name: Create temporary Gogs archive
+          ansible.builtin.tempfile:
+            state: file
+            suffix: .tar.gz
+          register: gogs_archive
+
+        - name: Download Gogs
+          ansible.builtin.get_url:
+            url: "https://github.com/gogs/gogs/releases/download/v{{ gogs_version }}/gogs_v{{ gogs_version }}_linux_amd64.tar.gz"
+            dest: "{{ gogs_archive.path }}"
+            force: true
+            mode: "0644"
+
+        - name: Extract Gogs
+          ansible.builtin.unarchive:
+            src: "{{ gogs_archive.path }}"
+            dest: "{{ gogs_install_path | dirname }}"
+            remote_src: true
+            owner: git
+            group: git
+          register: gogs_install
+
+      always:
+        - name: Remove temporary Gogs archive
+          ansible.builtin.file:
+            path: "{{ gogs_archive.path }}"
+            state: absent
+          when: gogs_archive.path is defined
+
+    - name: Create Gogs backup directory
+      ansible.builtin.file:
+        path: "{{ gogs_backup_path }}"
+        state: directory
+        owner: git
+        group: git
+        mode: "0750"
+
+    - name: Probe Gogs backup storage
+      ansible.builtin.tempfile:
+        state: file
+        path: /mnt/backup
+        prefix: .ansible-storage-test-
+      register: gogs_backup_storage_probe
+      changed_when: false
+
+    - name: Remove Gogs backup storage probe
+      ansible.builtin.file:
+        path: "{{ gogs_backup_storage_probe.path }}"
+        state: absent
+      changed_when: false
+
+    - name: Configure Gogs Borg backup
+      ansible.builtin.include_tasks: "{{ common_dir }}/configure-borg-backup.yml"
+      vars:
+        borg_service_name: gogs-borg
+        borg_repository: "{{ gogs_borg_repository }}"
+        borg_source: "{{ gogs_backup_path }}/latest.zip"
+
+    - name: Check for pending Gogs restore
+      ansible.builtin.stat:
+        path: "{{ gogs_restore_marker_path }}"
+      register: gogs_restore_marker
+
+    - name: Check for existing Gogs database
+      ansible.builtin.stat:
+        path: "{{ gogs_install_path }}/data/gogs.db"
+      register: gogs_database
+
+    - name: Decide whether to restore Gogs
+      ansible.builtin.set_fact:
+        gogs_restore_required: >-
+          {{
+            gogs_restore_marker.stat.exists
+            or not gogs_database.stat.exists
+          }}
+
+    - name: Restore Gogs from backup
+      ansible.builtin.include_tasks: restore-from-backup.yml
+      when: gogs_restore_required
+
+    - name: Create Gogs configuration directory
+      ansible.builtin.file:
+        path: "{{ gogs_install_path }}/custom/conf"
+        state: directory
+        owner: git
+        group: git
+        mode: "0755"
+
+    - name: Generate Gogs secret key
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - >-
+            import secrets, pathlib;
+            pathlib.Path({{ (gogs_install_path ~ '/custom/conf/secret_key') | to_json }}).write_text(secrets.token_urlsafe(32))
+        creates: "{{ gogs_install_path }}/custom/conf/secret_key"
+
+    - name: Secure Gogs secret key
+      ansible.builtin.file:
+        path: "{{ gogs_install_path }}/custom/conf/secret_key"
+        state: file
+        owner: git
+        group: git
+        mode: "0600"
+
+    - name: Read Gogs secret key
+      ansible.builtin.command:
+        argv:
+          - cat
+          - "{{ gogs_install_path }}/custom/conf/secret_key"
+      register: gogs_secret_key
+      changed_when: false
+
+    - name: Configure Gogs
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/assets/app.ini.j2"
+        dest: "{{ gogs_install_path }}/custom/conf/app.ini"
+        owner: git
+        group: git
+        mode: "0600"
+      register: gogs_config
+
+    - name: Configure Gogs service
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/assets/gogs.service.j2"
+        dest: /etc/systemd/system/gogs.service
+        mode: "0644"
+      register: gogs_service
+
+    - name: Enable Gogs service
+      ansible.builtin.systemd_service:
+        name: gogs
+        enabled: true
+        daemon_reload: "{{ gogs_service.changed }}"
+        state: "{{ 'restarted' if (gogs_install.changed | default(false)) or gogs_config.changed or gogs_service.changed else 'started' }}"
+
+    - name: Wait for configured Gogs HTTP response
+      ansible.builtin.uri:
+        url: http://localhost/
+        method: GET
+        follow_redirects: none
+        status_code:
+          - 200
+          - 302
+      register: gogs_http
+      until:
+        - gogs_http.status in [200, 302]
+        - "'/install' not in (gogs_http.location | default(''))"
+      retries: 12
+      delay: 5
+
+    - name: Mark Gogs restore complete
+      ansible.builtin.file:
+        path: "{{ gogs_restore_marker_path }}"
+        state: absent
+      when: gogs_restore_required
+
+    - name: Configure Gogs backup service
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/assets/gogs-backup.service.j2"
+        dest: /etc/systemd/system/gogs-backup.service
+        mode: "0644"
+      register: gogs_backup_service
+
+    - name: Configure Gogs backup timer
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/assets/gogs-backup.timer"
+        dest: /etc/systemd/system/gogs-backup.timer
+        mode: "0644"
+      register: gogs_backup_timer
+
+    - name: Enable Gogs backup timer
+      ansible.builtin.systemd_service:
+        name: gogs-backup.timer
+        enabled: true
+        daemon_reload: "{{ gogs_backup_service.changed or gogs_backup_timer.changed }}"
+        state: "{{ 'restarted' if gogs_backup_timer.changed else 'started' }}"

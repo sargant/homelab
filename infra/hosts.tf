@@ -28,5 +28,14 @@ locals {
       dns          = "paperless.home.arpa"
       vm_id        = 1044
     }
+
+    git = {
+      hostname     = "git"
+      display_name = "Git server"
+      mac          = "02:de:71:b9:0d:96"
+      ip           = "192.168.37.46"
+      dns          = "git.home.arpa"
+      vm_id        = 1046
+    }
   }
 }

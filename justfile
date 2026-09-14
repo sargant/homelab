@@ -5,9 +5,13 @@ set dotenv-required
 default:
   @just --list
 
-# Initialize the Proxmox management host with Ansible.
-init:
+# Configure the Proxmox management host with Ansible.
+pve:
   cd ansible && ansible-playbook vm-host/main.yml
+
+# Initialize OpenTofu.
+init:
+  tofu -chdir=infra init
 
 # Update all known hosts and services with Ansible.
 update:
@@ -35,3 +39,8 @@ tailscale:
 paperless:
   tofu -chdir=infra plan -target=proxmox_virtual_environment_vm.paperless -detailed-exitcode -compact-warnings
   cd ansible && ansible-playbook paperless/main.yml
+
+# Configure the Gogs host after verifying its infrastructure is converged.
+git:
+  tofu -chdir=infra plan -target=module.git -detailed-exitcode -compact-warnings
+  cd ansible && ansible-playbook git/main.yml

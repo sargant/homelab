@@ -47,6 +47,15 @@ resource "proxmox_virtual_environment_container" "this" {
     }
   }
 
+  dynamic "mount_point" {
+    for_each = var.bind_mounts
+
+    content {
+      volume = mount_point.value.source
+      path   = mount_point.value.path
+    }
+  }
+
   initialization {
     hostname = var.host.hostname
 

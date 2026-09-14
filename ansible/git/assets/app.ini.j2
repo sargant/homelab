@@ -1,0 +1,29 @@
+RUN_MODE = prod
+
+[database]
+TYPE = sqlite3
+PATH = {{ gogs_install_path }}/data/gogs.db
+
+[repository]
+ROOT = {{ gogs_repo_path }}
+DEFAULT_BRANCH = main
+
+[server]
+DOMAIN = {{ ansible_host }}
+HTTP_PORT = 80
+EXTERNAL_URL = http://{{ ansible_host }}/
+DISABLE_SSH = true
+
+[auth]
+ENABLE_REGISTRATION_CAPTCHA = false
+
+[session]
+PROVIDER = file
+
+[log]
+MODE = console
+LEVEL = Info
+
+[security]
+INSTALL_LOCK = true
+SECRET_KEY = {{ gogs_secret_key.stdout }}

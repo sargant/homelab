@@ -1,0 +1,65 @@
+---
+- name: Prepare Gogs Borg restore
+  ansible.builtin.include_tasks: "{{ common_dir }}/prepare-borg-restore.yml"
+  vars:
+    borg_restore_marker_path: "{{ gogs_restore_marker_path }}"
+    borg_restore_repository: "{{ gogs_borg_repository }}"
+
+- name: Restore Gogs backup
+  when: borg_restore_archive | default('') | length > 0
+  block:
+    - name: Check whether Gogs service is configured
+      ansible.builtin.stat:
+        path: /etc/systemd/system/gogs.service
+      register: gogs_service_unit
+
+    - name: Stop Gogs before restore
+      ansible.builtin.systemd_service:
+        name: gogs
+        state: stopped
+      when: gogs_service_unit.stat.exists
+
+    - name: Clear Gogs state before restore
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ gogs_install_path }}/data"
+        - "{{ gogs_install_path }}/custom"
+        - "{{ gogs_install_path }}/custom.bak"
+        - "{{ gogs_repo_path }}"
+        - "{{ gogs_backup_path }}/latest.zip"
+
+    - name: Restore Gogs backup archive from Borg
+      ansible.builtin.command:
+        argv:
+          - borg
+          - extract
+          - "{{ gogs_borg_repository }}::{{ borg_restore_archive }}"
+          - latest.zip
+        chdir: "{{ gogs_backup_path }}"
+      environment:
+        BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
+
+    - name: Set restored Gogs backup archive ownership
+      ansible.builtin.file:
+        path: "{{ gogs_backup_path }}/latest.zip"
+        state: file
+        owner: git
+        group: git
+        mode: "0640"
+
+    - name: Restore Gogs application state
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - --user
+          - git
+          - --
+          - "{{ gogs_install_path }}/gogs"
+          - restore
+          - --tempdir
+          - "{{ gogs_install_path }}"
+          - --from
+          - "{{ gogs_backup_path }}/latest.zip"
+        chdir: "{{ gogs_install_path }}"

@@ -1,0 +1,16 @@
+[Unit]
+Description=Gogs backup
+OnSuccess=gogs-borg.service
+StartLimitIntervalSec=6min
+StartLimitBurst=12
+
+[Service]
+Type=oneshot
+User=git
+Group=git
+WorkingDirectory={{ gogs_install_path }}
+ExecStartPre=/usr/bin/rm -f {{ gogs_backup_path }}/.latest.zip
+ExecStart={{ gogs_install_path }}/gogs backup --target {{ gogs_backup_path }} --archive-name .latest.zip
+ExecStartPost=/usr/bin/mv -f {{ gogs_backup_path }}/.latest.zip {{ gogs_backup_path }}/latest.zip
+Restart=on-failure
+RestartSec=30
