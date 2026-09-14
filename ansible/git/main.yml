@@ -95,9 +95,12 @@
         mode: "0600"
 
     - name: Read Gogs secret key
-      ansible.builtin.slurp:
-        src: "{{ gogs_install_path }}/custom/conf/secret_key"
-      register: gogs_secret_key_file
+      ansible.builtin.command:
+        argv:
+          - cat
+          - "{{ gogs_install_path }}/custom/conf/secret_key"
+      register: gogs_secret_key
+      changed_when: false
 
     - name: Configure Gogs
       ansible.builtin.template:
