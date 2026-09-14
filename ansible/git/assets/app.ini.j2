@@ -13,6 +13,9 @@ DOMAIN = {{ ansible_host }}
 HTTP_PORT = 80
 EXTERNAL_URL = http://{{ ansible_host }}/
 
+[auth]
+ENABLE_REGISTRATION_CAPTCHA = false
+
 [session]
 PROVIDER = file
 
