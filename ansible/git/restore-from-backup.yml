@@ -8,6 +8,17 @@
 - name: Restore Gogs backup
   when: borg_restore_archive | default('') | length > 0
   block:
+    - name: Check whether Gogs service is configured
+      ansible.builtin.stat:
+        path: /etc/systemd/system/gogs.service
+      register: gogs_service_unit
+
+    - name: Stop Gogs before restore
+      ansible.builtin.systemd_service:
+        name: gogs
+        state: stopped
+      when: gogs_service_unit.stat.exists
+
     - name: Clear Gogs state before restore
       ansible.builtin.file:
         path: "{{ item }}"
