@@ -50,10 +50,19 @@
       ansible.builtin.apt:
         name:
           - just
+          - nfs-common
           - openssh-client
         state: present
         update_cache: true
         cache_valid_time: 3600
+
+    - name: Mount NAS backup storage
+      ansible.posix.mount:
+        src: "{{ hostvars['nas'].ansible_host }}:/volume1/backup"
+        path: /mnt/nas-backup
+        fstype: nfs4
+        opts: defaults,_netdev
+        state: mounted
 
     - name: Install OpenTofu
       ansible.builtin.include_tasks: "{{ common_dir }}/install-opentofu.yml"
