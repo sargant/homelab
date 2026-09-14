@@ -21,4 +21,4 @@ LEVEL = Info
 
 [security]
 INSTALL_LOCK = true
-SECRET_KEY = {{ gogs_secret_key }}
+SECRET_KEY = {{ gogs_secret_key_file.content | b64decode | trim }}
