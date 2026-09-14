@@ -124,7 +124,7 @@
 
     - name: Wait for configured Gogs HTTP response
       ansible.builtin.uri:
-        url: http://localhost:3000/
+        url: http://localhost/
         method: GET
         follow_redirects: none
         status_code:
