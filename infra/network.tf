@@ -1,18 +1,17 @@
 locals {
   hosts = {
-    # New UniFi-managed MAC addresses should be lowercase: UniFi normalizes them
-    # to lowercase, while the current provider lookup is case-sensitive.
-    # Existing entries retain their original casing to avoid forced replacement.
+    # UniFi normalizes MAC addresses to lowercase, and the current provider
+    # performs a case-sensitive lookup when adopting existing clients.
     tailscale = {
       hostname = "tailscale"
-      mac      = "02:EE:88:40:BC:33"
+      mac      = "02:ee:88:40:bc:33"
       ip       = "192.168.37.21"
       dns      = "tailscale.home.arpa"
     }
 
     print_server = {
       hostname = "print-server"
-      mac      = "02:7A:41:C3:8D:52"
+      mac      = "02:7a:41:c3:8d:52"
       ip       = "192.168.37.41"
       dns      = "print-server.home.arpa"
     }
