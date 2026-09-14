@@ -1,22 +1,4 @@
 ---
-- name: Read pending Borg restore archive
-  ansible.builtin.slurp:
-    src: "{{ borg_restore_marker_path }}"
-  register: borg_restore_marker_content
-  when: borg_restore_pending
-
-- name: Select pending Borg restore archive
-  ansible.builtin.set_fact:
-    borg_restore_archive: "{{ borg_restore_marker_content.content | b64decode | trim }}"
-  when: borg_restore_pending
-
-- name: Check pending Borg restore archive
-  ansible.builtin.assert:
-    that:
-      - borg_restore_archive | length > 0
-    fail_msg: Pending Borg restore does not contain an archive name.
-  when: borg_restore_pending
-
 - name: Find latest Borg backup
   ansible.builtin.command:
     argv:
@@ -29,22 +11,18 @@
       - "{{ borg_restore_repository }}"
   register: borg_restore_list
   changed_when: false
-  when: not borg_restore_pending
   environment:
     BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
 
 - name: Select latest Borg restore archive
   ansible.builtin.set_fact:
     borg_restore_archive: "{{ borg_restore_list.stdout | trim }}"
-  when: not borg_restore_pending
 
 - name: Record pending Borg restore
   ansible.builtin.copy:
     dest: "{{ borg_restore_marker_path }}"
-    content: "{{ borg_restore_archive }}\n"
+    content: ""
     owner: root
     group: root
     mode: "0600"
-  when:
-    - borg_restore_archive | default('') | length > 0
-    - not borg_restore_pending
+  when: borg_restore_archive | length > 0
