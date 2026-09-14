@@ -97,7 +97,7 @@
         - name: Configure Paperless Samba inbox
           ansible.builtin.include_tasks: "{{ common_dir }}/configure-samba-host.yml"
           vars:
-            samba_config_source: "{{ playbook_dir }}/smb.conf.j2"
+            samba_config_source: "{{ playbook_dir }}/assets/smb.conf.j2"
 
     - name: Check for pending Paperless restore
       ansible.builtin.stat:
@@ -107,7 +107,7 @@
     - name: Configure Paperless Docker Compose services
       ansible.builtin.include_tasks: "{{ common_dir }}/configure-docker-compose.yml"
       vars:
-        compose_source: "{{ playbook_dir }}/compose.yml"
+        compose_source: "{{ playbook_dir }}/assets/compose.yml"
         compose_path: "{{ paperless_install_path }}"
         compose_expected_services:
           - broker
@@ -202,7 +202,7 @@
         - name: Recreate Paperless after interrupted restore
           ansible.builtin.include_tasks: "{{ common_dir }}/configure-docker-compose.yml"
           vars:
-            compose_source: "{{ playbook_dir }}/compose.yml"
+            compose_source: "{{ playbook_dir }}/assets/compose.yml"
             compose_path: "{{ paperless_install_path }}"
             compose_expected_services:
               - broker
@@ -251,14 +251,14 @@
       block:
         - name: Configure Paperless export service
           ansible.builtin.template:
-            src: "{{ playbook_dir }}/paperless-export.service.j2"
+            src: "{{ playbook_dir }}/assets/paperless-export.service.j2"
             dest: /etc/systemd/system/paperless-export.service
             mode: "0644"
           register: paperless_export_service
 
         - name: Configure Paperless export timer
           ansible.builtin.copy:
-            src: "{{ playbook_dir }}/paperless-export.timer"
+            src: "{{ playbook_dir }}/assets/paperless-export.timer"
             dest: /etc/systemd/system/paperless-export.timer
             mode: "0644"
           register: paperless_export_timer
