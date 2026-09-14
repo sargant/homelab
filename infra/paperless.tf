@@ -109,6 +109,7 @@ resource "unifi_client" "paperless" {
   name             = "Paperless"
   fixed_ip         = local.hosts.paperless.ip
   local_dns_record = local.hosts.paperless.dns
+  allow_existing   = true
 
   depends_on = [terraform_data.paperless_unifi_bootstrap]
 }
