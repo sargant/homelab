@@ -60,3 +60,4 @@
           - restore
           - --from
           - "{{ gogs_backup_path }}/latest.zip"
+        chdir: "{{ gogs_install_path }}"
