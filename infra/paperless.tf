@@ -10,7 +10,7 @@ resource "time_sleep" "paperless_dhcp" {
 
   triggers = {
     client_id        = unifi_client.paperless.id
-    mac              = unifi_client.paperless.mac
+    mac              = local.hosts.paperless.mac
     fixed_ip         = unifi_client.paperless.fixed_ip
     local_dns_record = unifi_client.paperless.local_dns_record
   }
@@ -35,7 +35,7 @@ resource "proxmox_virtual_environment_vm" "paperless" {
   name        = local.hosts.paperless.hostname
   description = "Paperless application host"
   node_name   = "vm-host"
-  vm_id       = 1099
+  vm_id       = 1044
 
   boot_order      = ["scsi0"]
   on_boot         = true
