@@ -11,6 +11,7 @@
     gogs_backup_archive: "{{ gogs_backup_path }}/latest.zip"
     gogs_backup_mountpoint: /mnt/backup
     gogs_borg_repository: "{{ gogs_backup_mountpoint }}/borg"
+    gogs_restore_marker_path: "{{ gogs_install_path }}/.restore-pending"
 
   pre_tasks:
     - name: Trust SSH host key
@@ -72,6 +73,41 @@
             path: "{{ gogs_archive.path }}"
             state: absent
           when: gogs_archive.path is defined
+
+    - name: Create Gogs backup directory
+      ansible.builtin.file:
+        path: "{{ gogs_backup_path }}"
+        state: directory
+        owner: git
+        group: git
+        mode: "0750"
+
+    - name: Configure Gogs backup NFS mount
+      ansible.builtin.include_tasks: "{{ common_dir }}/configure-nfs-mount.yml"
+      vars:
+        nfs_source: "{{ hostvars['nas'].ansible_host }}:/volume1/backup/gogs"
+        nfs_mountpoint: "{{ gogs_backup_mountpoint }}"
+
+    - name: Configure Gogs Borg backup
+      ansible.builtin.include_tasks: "{{ common_dir }}/configure-borg-backup.yml"
+      vars:
+        borg_service_name: gogs-borg
+        borg_repository: "{{ gogs_borg_repository }}"
+        borg_source: "{{ gogs_backup_archive }}"
+
+    - name: Check for existing Gogs database
+      ansible.builtin.stat:
+        path: "{{ gogs_install_path }}/data/gogs.db"
+      register: gogs_database
+
+    - name: Check for pending Gogs restore
+      ansible.builtin.stat:
+        path: "{{ gogs_restore_marker_path }}"
+      register: gogs_restore_marker
+
+    - name: Restore Gogs from backup
+      ansible.builtin.include_tasks: restore-from-backup.yml
+      when: not gogs_database.stat.exists or gogs_restore_marker.stat.exists
 
     - name: Create Gogs configuration directory
       ansible.builtin.file:
@@ -145,26 +181,10 @@
       retries: 12
       delay: 5
 
-    - name: Create Gogs backup directory
+    - name: Mark Gogs restore complete
       ansible.builtin.file:
-        path: "{{ gogs_backup_path }}"
-        state: directory
-        owner: git
-        group: git
-        mode: "0750"
-
-    - name: Configure Gogs backup NFS mount
-      ansible.builtin.include_tasks: "{{ common_dir }}/configure-nfs-mount.yml"
-      vars:
-        nfs_source: "{{ hostvars['nas'].ansible_host }}:/volume1/backup/gogs"
-        nfs_mountpoint: "{{ gogs_backup_mountpoint }}"
-
-    - name: Configure Gogs Borg backup
-      ansible.builtin.include_tasks: "{{ common_dir }}/configure-borg-backup.yml"
-      vars:
-        borg_service_name: gogs-borg
-        borg_repository: "{{ gogs_borg_repository }}"
-        borg_source: "{{ gogs_backup_archive }}"
+        path: "{{ gogs_restore_marker_path }}"
+        state: absent
 
     - name: Configure Gogs backup service
       ansible.builtin.template:
