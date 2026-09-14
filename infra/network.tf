@@ -22,5 +22,12 @@ locals {
       ip       = "192.168.37.44"
       dns      = "paperless.home.arpa"
     }
+
+    git = {
+      hostname = "git"
+      mac      = "02:de:71:b9:0d:96"
+      ip       = "192.168.37.46"
+      dns      = "git.home.arpa"
+    }
   }
 }
