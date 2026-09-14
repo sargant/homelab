@@ -1,6 +1,6 @@
 resource "unifi_client" "paperless" {
   mac              = local.hosts.paperless.mac
-  name             = "Paperless"
+  name             = local.hosts.paperless.display_name
   fixed_ip         = local.hosts.paperless.ip
   local_dns_record = local.hosts.paperless.dns
 }
