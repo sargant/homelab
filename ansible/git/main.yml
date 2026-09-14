@@ -11,7 +11,7 @@
     gogs_backup_archive: "{{ gogs_backup_path }}/latest.zip"
     gogs_backup_mountpoint: /mnt/backup
     gogs_borg_repository: "{{ gogs_backup_mountpoint }}/borg"
-    gogs_restore_marker_path: "{{ gogs_install_path }}/.restore-pending"
+    gogs_restore_marker_path: /var/lib/gogs/.restore-pending
 
   pre_tasks:
     - name: Trust SSH host key
@@ -94,6 +94,14 @@
         borg_service_name: gogs-borg
         borg_repository: "{{ gogs_borg_repository }}"
         borg_source: "{{ gogs_backup_archive }}"
+
+    - name: Create Gogs restore state directory
+      ansible.builtin.file:
+        path: "{{ gogs_restore_marker_path | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
 
     # A missing database means this is either a genuinely clean install or a
     # replacement host that should restore from Borg. Existing installations
