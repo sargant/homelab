@@ -117,9 +117,63 @@
         path: "{{ gogs_restore_marker_path }}"
       register: gogs_restore_marker
 
+    - name: Read pending Gogs restore archive
+      ansible.builtin.slurp:
+        src: "{{ gogs_restore_marker_path }}"
+      register: gogs_restore_marker_content
+      when: gogs_restore_marker.stat.exists
+
+    - name: Select pending Gogs restore archive
+      ansible.builtin.set_fact:
+        gogs_restore_archive: "{{ gogs_restore_marker_content.content | b64decode | trim }}"
+      when: gogs_restore_marker.stat.exists
+
+    - name: Check pending Gogs restore archive
+      ansible.builtin.assert:
+        that:
+          - gogs_restore_archive | length > 0
+        fail_msg: Pending Gogs restore does not contain an archive name.
+      when: gogs_restore_marker.stat.exists
+
+    - name: Find latest Gogs backup
+      ansible.builtin.command:
+        argv:
+          - borg
+          - list
+          - --last
+          - "1"
+          - --format
+          - "{archive}{NL}"
+          - "{{ gogs_borg_repository }}"
+      register: gogs_backup_list
+      changed_when: false
+      when:
+        - not gogs_database.stat.exists
+        - not gogs_restore_marker.stat.exists
+      environment:
+        BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
+
+    - name: Select latest Gogs restore archive
+      ansible.builtin.set_fact:
+        gogs_restore_archive: "{{ gogs_backup_list.stdout | trim }}"
+      when:
+        - not gogs_database.stat.exists
+        - not gogs_restore_marker.stat.exists
+
+    - name: Record pending Gogs restore
+      ansible.builtin.copy:
+        dest: "{{ gogs_restore_marker_path }}"
+        content: "{{ gogs_restore_archive }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+      when:
+        - gogs_restore_archive | default('') | length > 0
+        - not gogs_restore_marker.stat.exists
+
     - name: Restore Gogs from backup
       ansible.builtin.include_tasks: restore-from-backup.yml
-      when: not gogs_database.stat.exists or gogs_restore_marker.stat.exists
+      when: gogs_restore_archive | default('') | length > 0
 
     - name: Create Gogs configuration directory
       ansible.builtin.file:
@@ -197,6 +251,7 @@
       ansible.builtin.file:
         path: "{{ gogs_restore_marker_path }}"
         state: absent
+      when: gogs_restore_archive | default('') | length > 0
 
     - name: Configure Gogs backup service
       ansible.builtin.template:
