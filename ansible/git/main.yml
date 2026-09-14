@@ -30,22 +30,42 @@
         shell: /bin/bash
         system: true
 
-    - name: Download Gogs
-      ansible.builtin.get_url:
-        url: "https://github.com/gogs/gogs/releases/download/v{{ gogs_version }}/gogs_v{{ gogs_version }}_linux_amd64.tar.gz"
-        dest: "/tmp/gogs_v{{ gogs_version }}_linux_amd64.tar.gz"
-        checksum: sha256:c27fbd8337ebd661929389f5237bf601e09958d514835c99fad3b904c63bedb2
-        mode: "0644"
+    - name: Check whether Gogs is installed
+      ansible.builtin.stat:
+        path: /home/git/gogs/gogs
+      register: gogs_binary
 
     - name: Install Gogs
-      ansible.builtin.unarchive:
-        src: "/tmp/gogs_v{{ gogs_version }}_linux_amd64.tar.gz"
-        dest: /home/git
-        remote_src: true
-        owner: git
-        group: git
-        creates: /home/git/gogs/gogs
-      register: gogs_install
+      when: not gogs_binary.stat.exists
+      block:
+        - name: Create temporary Gogs archive
+          ansible.builtin.tempfile:
+            state: file
+            suffix: .tar.gz
+          register: gogs_archive
+
+        - name: Download Gogs
+          ansible.builtin.get_url:
+            url: "https://github.com/gogs/gogs/releases/download/v{{ gogs_version }}/gogs_v{{ gogs_version }}_linux_amd64.tar.gz"
+            dest: "{{ gogs_archive.path }}"
+            checksum: sha256:c27fbd8337ebd661929389f5237bf601e09958d514835c99fad3b904c63bedb2
+            mode: "0644"
+
+        - name: Extract Gogs
+          ansible.builtin.unarchive:
+            src: "{{ gogs_archive.path }}"
+            dest: /home/git
+            remote_src: true
+            owner: git
+            group: git
+          register: gogs_install
+
+      always:
+        - name: Remove temporary Gogs archive
+          ansible.builtin.file:
+            path: "{{ gogs_archive.path }}"
+            state: absent
+          when: gogs_archive.path is defined
 
     - name: Configure Gogs service
       ansible.builtin.copy:
@@ -59,7 +79,7 @@
         name: gogs
         enabled: true
         daemon_reload: "{{ gogs_service.changed }}"
-        state: "{{ 'restarted' if gogs_install.changed or gogs_service.changed else 'started' }}"
+        state: "{{ 'restarted' if (gogs_install.changed | default(false)) or gogs_service.changed else 'started' }}"
 
     - name: Wait for Gogs HTTP response
       ansible.builtin.uri:
