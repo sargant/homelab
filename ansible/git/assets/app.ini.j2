@@ -9,9 +9,9 @@ ROOT = /home/git/repositories
 DEFAULT_BRANCH = main
 
 [server]
-DOMAIN = git.home.arpa
+DOMAIN = {{ ansible_host }}
 HTTP_PORT = 80
-EXTERNAL_URL = http://git.home.arpa/
+EXTERNAL_URL = http://{{ ansible_host }}/
 
 [session]
 PROVIDER = file
