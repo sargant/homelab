@@ -58,6 +58,8 @@
           - --
           - "{{ gogs_install_path }}/gogs"
           - restore
+          - --tempdir
+          - "{{ gogs_install_path }}"
           - --from
           - "{{ gogs_backup_path }}/latest.zip"
         chdir: "{{ gogs_install_path }}"
