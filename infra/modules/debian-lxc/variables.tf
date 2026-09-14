@@ -15,10 +15,6 @@ variable "vm_id" {
   type = number
 }
 
-variable "template_file_id" {
-  type = string
-}
-
 variable "cores" {
   type = number
 }
