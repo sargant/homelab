@@ -7,5 +7,5 @@ OnSuccess=paperless-borg.service
 [Service]
 Type=oneshot
 WorkingDirectory={{ paperless_install_path }}
-ExecStartPre=/bin/sh -c 'for i in $(seq 1 12); do /usr/bin/curl --fail --silent --output /dev/null http://127.0.0.1/ && exit 0; sleep 5; done; echo "Paperless did not become ready within 60 seconds" >&2; exit 1'
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 12); do /usr/bin/curl --fail --silent --output /dev/null http://localhost/ && exit 0; sleep 5; done; echo "Paperless did not become ready within 60 seconds" >&2; exit 1'
 ExecStart=/usr/bin/docker compose exec -T webserver document_exporter /usr/src/paperless/export --delete
