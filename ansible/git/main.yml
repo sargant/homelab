@@ -65,6 +65,7 @@
           ansible.builtin.get_url:
             url: "https://github.com/gogs/gogs/releases/download/v{{ gogs_version }}/gogs_v{{ gogs_version }}_linux_amd64.tar.gz"
             dest: "{{ gogs_archive.path }}"
+            force: true
             mode: "0644"
 
         - name: Extract Gogs
