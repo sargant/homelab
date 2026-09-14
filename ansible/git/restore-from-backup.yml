@@ -1,54 +1,14 @@
 ---
-- name: Read pending Gogs restore archive
-  ansible.builtin.slurp:
-    src: "{{ gogs_restore_marker_path }}"
-  register: gogs_restore_marker_content
-  when: gogs_restore_marker.stat.exists
-
-- name: Select pending Gogs restore archive
-  ansible.builtin.set_fact:
-    gogs_restore_archive: "{{ gogs_restore_marker_content.content | b64decode | trim }}"
-  when: gogs_restore_marker.stat.exists
-
-- name: Check pending Gogs restore archive
-  ansible.builtin.assert:
-    that:
-      - gogs_restore_archive | length > 0
-    fail_msg: Pending Gogs restore does not contain an archive name.
-  when: gogs_restore_marker.stat.exists
-
-- name: Find latest Gogs backup
-  ansible.builtin.command:
-    argv:
-      - borg
-      - list
-      - --last
-      - "1"
-      - --format
-      - "{archive}{NL}"
-      - "{{ gogs_borg_repository }}"
-  register: gogs_backup_list
-  changed_when: false
-  when: not gogs_restore_marker.stat.exists
-  environment:
-    BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
-
-- name: Select latest Gogs restore archive
-  ansible.builtin.set_fact:
-    gogs_restore_archive: "{{ gogs_backup_list.stdout | trim }}"
-  when: not gogs_restore_marker.stat.exists
+- name: Prepare Gogs Borg restore
+  ansible.builtin.include_tasks: "{{ common_dir }}/prepare-borg-restore.yml"
+  vars:
+    borg_restore_marker_path: "{{ gogs_restore_marker_path }}"
+    borg_restore_pending: "{{ gogs_restore_marker.stat.exists }}"
+    borg_restore_repository: "{{ gogs_borg_repository }}"
 
 - name: Restore Gogs backup
-  when: gogs_restore_archive | default('') | length > 0
+  when: borg_restore_archive | default('') | length > 0
   block:
-    - name: Record pending Gogs restore
-      ansible.builtin.copy:
-        dest: "{{ gogs_restore_marker_path }}"
-        content: "{{ gogs_restore_archive }}\n"
-        owner: root
-        group: root
-        mode: "0600"
-
     - name: Clear Gogs state before restore
       ansible.builtin.file:
         path: "{{ item }}"
@@ -65,7 +25,7 @@
         argv:
           - borg
           - extract
-          - "{{ gogs_borg_repository }}::{{ gogs_restore_archive }}"
+          - "{{ gogs_borg_repository }}::{{ borg_restore_archive }}"
           - "{{ gogs_backup_archive | basename }}"
         chdir: "{{ gogs_backup_path }}"
       environment:
