@@ -1,0 +1,45 @@
+---
+- name: Install BorgBackup
+  ansible.builtin.apt:
+    name: borgbackup
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Check Borg repository path
+  ansible.builtin.stat:
+    path: "{{ borg_repository }}"
+  register: borg_repository_path
+
+- name: Initialize Borg repository
+  ansible.builtin.command:
+    argv:
+      - borg
+      - init
+      - --encryption=none
+      - "{{ borg_repository }}"
+  when: not borg_repository_path.stat.exists
+
+- name: Verify Borg repository
+  ansible.builtin.command:
+    argv:
+      - borg
+      - info
+      - "{{ borg_repository }}"
+  register: borg_repository_check
+  changed_when: false
+  failed_when: borg_repository_check.rc != 0
+  environment:
+    BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
+
+- name: Configure Borg backup service
+  ansible.builtin.template:
+    src: "{{ common_dir }}/borg-backup.service.j2"
+    dest: "/etc/systemd/system/{{ borg_service_name }}.service"
+    mode: "0644"
+  register: borg_service
+
+- name: Reload systemd for Borg backup service
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: borg_service.changed
