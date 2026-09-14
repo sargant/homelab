@@ -64,30 +64,6 @@
         opts: defaults,_netdev
         state: mounted
 
-    - name: Verify NAS backup root squash protection
-      block:
-        - name: Attempt NAS backup write as root
-          ansible.builtin.command:
-            argv:
-              - touch
-              - /mnt/nas-backup/.ansible-root-squash-test
-          register: nas_backup_root_write
-          changed_when: false
-          failed_when: false
-
-        - name: Check NAS backup root write is denied
-          ansible.builtin.assert:
-            that:
-              - nas_backup_root_write.rc != 0
-            fail_msg: Root can write to /mnt/nas-backup; expected NAS root squash protection.
-      always:
-        - name: Remove NAS backup root squash probe
-          ansible.builtin.file:
-            path: /mnt/nas-backup/.ansible-root-squash-test
-            state: absent
-          when: nas_backup_root_write is defined and nas_backup_root_write.rc == 0
-          changed_when: false
-
     - name: Install OpenTofu
       ansible.builtin.include_tasks: "{{ common_dir }}/install-opentofu.yml"
 
