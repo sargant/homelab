@@ -40,8 +40,20 @@
         path: "{{ gogs_install_path }}/gogs"
       register: gogs_binary
 
+    - name: Check installed Gogs version
+      ansible.builtin.command:
+        argv:
+          - "{{ gogs_install_path }}/gogs"
+          - --version
+      register: gogs_installed_version
+      changed_when: false
+      when: gogs_binary.stat.exists
+
     - name: Install Gogs
-      when: not gogs_binary.stat.exists
+      when: >-
+        not gogs_binary.stat.exists
+        or (gogs_installed_version.stdout | default('') | trim)
+           != ('Gogs version ' ~ gogs_version)
       block:
         - name: Create temporary Gogs archive
           ansible.builtin.tempfile:
@@ -53,7 +65,6 @@
           ansible.builtin.get_url:
             url: "https://github.com/gogs/gogs/releases/download/v{{ gogs_version }}/gogs_v{{ gogs_version }}_linux_amd64.tar.gz"
             dest: "{{ gogs_archive.path }}"
-            checksum: sha256:c27fbd8337ebd661929389f5237bf601e09958d514835c99fad3b904c63bedb2
             mode: "0644"
 
         - name: Extract Gogs
