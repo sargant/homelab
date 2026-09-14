@@ -2,11 +2,21 @@
 - name: Check Docker Compose configuration
   ansible.builtin.assert:
     that:
+      - compose_source is defined
+      - compose_source | trim | length > 0
       - compose_path is defined
       - compose_path | trim | length > 0
       - compose_expected_services is defined
       - compose_expected_services | length > 0
-    fail_msg: compose_path and compose_expected_services must be defined.
+    fail_msg: compose_source, compose_path, and compose_expected_services must be defined.
+
+- name: Install Docker Compose definition
+  ansible.builtin.template:
+    src: "{{ compose_source }}"
+    dest: "{{ compose_path }}/compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
 
 - name: Configure Docker Compose services
   community.docker.docker_compose_v2:
@@ -14,6 +24,17 @@
     state: present
     pull: always
   register: compose_result
+
+- name: Record Docker Compose volumes created
+  ansible.builtin.set_fact:
+    compose_created_volumes: >-
+      {{
+        compose_result.actions
+        | selectattr('what', 'equalto', 'volume')
+        | selectattr('status', 'equalto', 'Creating')
+        | map(attribute='id')
+        | list
+      }}
 
 - name: Check Docker Compose services
   ansible.builtin.assert:
