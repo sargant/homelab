@@ -10,7 +10,7 @@ resource "time_sleep" "paperless_dhcp" {
 
   triggers = {
     client_id        = unifi_client.paperless.id
-    mac              = local.hosts.paperless.mac
+    mac              = unifi_client.paperless.mac
     fixed_ip         = unifi_client.paperless.fixed_ip
     local_dns_record = unifi_client.paperless.local_dns_record
   }
