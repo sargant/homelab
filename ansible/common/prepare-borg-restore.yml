@@ -1,28 +1,32 @@
 ---
-- name: Find latest Borg backup
-  ansible.builtin.command:
-    argv:
-      - borg
-      - list
-      - --last
-      - "1"
-      - --format
-      - "{archive}{NL}"
-      - "{{ borg_restore_repository }}"
-  register: borg_restore_list
+- name: Select Borg restore archive
+  ansible.builtin.shell: |
+    set -euo pipefail
+
+    if [ -s {{ borg_restore_marker_path | quote }} ]; then
+      cat {{ borg_restore_marker_path | quote }}
+    else
+      borg list \
+        --last 1 \
+        --format '{archive}{NL}' \
+        {{ borg_restore_repository | quote }}
+    fi
+  args:
+    executable: /bin/bash
+  register: borg_restore_selection
   changed_when: false
   environment:
     BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
 
-- name: Select latest Borg restore archive
-  ansible.builtin.set_fact:
-    borg_restore_archive: "{{ borg_restore_list.stdout | trim }}"
-
 - name: Record pending Borg restore
   ansible.builtin.copy:
     dest: "{{ borg_restore_marker_path }}"
-    content: ""
+    content: "{{ borg_restore_selection.stdout | trim }}\n"
     owner: root
     group: root
     mode: "0600"
-  when: borg_restore_archive | length > 0
+  when: borg_restore_selection.stdout | trim | length > 0
+
+- name: Set Borg restore archive
+  ansible.builtin.set_fact:
+    borg_restore_archive: "{{ borg_restore_selection.stdout | trim }}"
