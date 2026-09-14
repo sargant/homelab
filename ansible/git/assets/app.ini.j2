@@ -5,7 +5,7 @@ TYPE = sqlite3
 PATH = {{ gogs_install_path }}/data/gogs.db
 
 [repository]
-ROOT = /home/git/repositories
+ROOT = {{ gogs_repo_path }}
 DEFAULT_BRANCH = main
 
 [server]
