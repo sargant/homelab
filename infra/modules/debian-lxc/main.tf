@@ -62,6 +62,7 @@ resource "proxmox_virtual_environment_container" "this" {
       }
 
       ipv6 {
+        # Proxmox uses "auto" for SLAAC.
         address = "auto"
       }
     }
