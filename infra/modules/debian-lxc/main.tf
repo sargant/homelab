@@ -62,7 +62,7 @@ resource "proxmox_virtual_environment_container" "this" {
       }
 
       ipv6 {
-        address = var.ipv6_address
+        address = "auto"
       }
     }
   }
