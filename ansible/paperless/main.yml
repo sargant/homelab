@@ -224,7 +224,7 @@
 
         - name: Wait for Paperless HTTP response
           ansible.builtin.uri:
-            url: http://127.0.0.1/
+            url: http://localhost/
             method: GET
             follow_redirects: none
             status_code:
