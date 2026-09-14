@@ -99,18 +99,26 @@
           vars:
             samba_config_source: "{{ playbook_dir }}/smb.conf.j2"
 
+        - name: Install Paperless Docker Compose definition
+          ansible.builtin.template:
+            src: "{{ playbook_dir }}/compose.yml"
+            dest: "{{ paperless_install_path }}/compose.yml"
+            owner: root
+            group: root
+            mode: "0644"
+
     - name: Prepare Paperless restore
       block:
-        - name: Check for existing Paperless database
+        - name: Check for existing Paperless Compose volumes
           ansible.builtin.command:
             argv:
               - docker
-              - volume
-              - inspect
-              - paperless_pgdata
-          register: paperless_database_volume
+              - compose
+              - volumes
+              - --quiet
+            chdir: "{{ paperless_install_path }}"
+          register: paperless_compose_volumes
           changed_when: false
-          failed_when: paperless_database_volume.rc not in [0, 1]
 
         - name: Check for pending Paperless restore
           ansible.builtin.stat:
@@ -118,7 +126,7 @@
           register: paperless_restore_marker
 
         - name: Restore Paperless data
-          when: paperless_database_volume.rc != 0 or paperless_restore_marker.stat.exists
+          when: paperless_compose_volumes.stdout_lines | length == 0 or paperless_restore_marker.stat.exists
           block:
             - name: Read pending Paperless restore archive
               ansible.builtin.slurp:
@@ -175,7 +183,7 @@
                 remove_volumes: true
               when:
                 - paperless_restore_marker.stat.exists
-                - paperless_database_volume.rc == 0
+                - paperless_compose_volumes.stdout_lines | length > 0
 
             - name: Clear Paperless export directory before restore
               ansible.builtin.file:
@@ -208,7 +216,6 @@
         - name: Configure Paperless Docker Compose services
           ansible.builtin.include_tasks: "{{ common_dir }}/configure-docker-compose.yml"
           vars:
-            compose_source: "{{ playbook_dir }}/compose.yml"
             compose_path: "{{ paperless_install_path }}"
             compose_expected_services:
               - broker
