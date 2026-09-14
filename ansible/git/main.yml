@@ -5,6 +5,7 @@
 
   vars:
     gogs_version: "0.14.3"
+    gogs_install_path: /home/git/gogs
 
   pre_tasks:
     - name: Trust SSH host key
@@ -32,7 +33,7 @@
 
     - name: Check whether Gogs is installed
       ansible.builtin.stat:
-        path: /home/git/gogs/gogs
+        path: "{{ gogs_install_path }}/gogs"
       register: gogs_binary
 
     - name: Install Gogs
@@ -54,7 +55,7 @@
         - name: Extract Gogs
           ansible.builtin.unarchive:
             src: "{{ gogs_archive.path }}"
-            dest: /home/git
+            dest: "{{ gogs_install_path | dirname }}"
             remote_src: true
             owner: git
             group: git
@@ -69,7 +70,7 @@
 
     - name: Create Gogs configuration directory
       ansible.builtin.file:
-        path: /home/git/gogs/custom/conf
+        path: "{{ gogs_install_path }}/custom/conf"
         state: directory
         owner: git
         group: git
@@ -82,12 +83,12 @@
           - -c
           - >-
             import secrets, pathlib;
-            pathlib.Path('/home/git/gogs/custom/conf/secret_key').write_text(secrets.token_urlsafe(32))
-        creates: /home/git/gogs/custom/conf/secret_key
+            pathlib.Path({{ (gogs_install_path ~ '/custom/conf/secret_key') | to_json }}).write_text(secrets.token_urlsafe(32))
+        creates: "{{ gogs_install_path }}/custom/conf/secret_key"
 
     - name: Secure Gogs secret key
       ansible.builtin.file:
-        path: /home/git/gogs/custom/conf/secret_key
+        path: "{{ gogs_install_path }}/custom/conf/secret_key"
         state: file
         owner: git
         group: git
@@ -95,21 +96,21 @@
 
     - name: Read Gogs secret key
       ansible.builtin.slurp:
-        src: /home/git/gogs/custom/conf/secret_key
+        src: "{{ gogs_install_path }}/custom/conf/secret_key"
       register: gogs_secret_key_file
 
     - name: Configure Gogs
       ansible.builtin.template:
         src: "{{ playbook_dir }}/assets/app.ini.j2"
-        dest: /home/git/gogs/custom/conf/app.ini
+        dest: "{{ gogs_install_path }}/custom/conf/app.ini"
         owner: git
         group: git
         mode: "0600"
       register: gogs_config
 
     - name: Configure Gogs service
-      ansible.builtin.copy:
-        src: "{{ playbook_dir }}/assets/gogs.service"
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/assets/gogs.service.j2"
         dest: /etc/systemd/system/gogs.service
         mode: "0644"
       register: gogs_service
