@@ -160,7 +160,8 @@
 
     - name: Prompt for Tailscale auth key
       ansible.builtin.pause:
-        prompt: Tailscale auth key
+        prompt: >-
+          Tailscale auth key (create a one-shot, non-reusable key tagged tag:server)
         echo: false
       register: tailscale_auth_key_prompt
       no_log: true
