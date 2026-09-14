@@ -20,28 +20,19 @@ variable "template_file_id" {
 }
 
 variable "cores" {
-  type    = number
-  default = 1
+  type = number
 }
 
 variable "memory" {
-  type    = number
-  default = 256
+  type = number
 }
 
 variable "swap" {
-  type    = number
-  default = 256
+  type = number
 }
 
 variable "disk_size" {
-  type    = number
-  default = 8
-}
-
-variable "ipv6_address" {
-  type    = string
-  default = "dhcp"
+  type = number
 }
 
 variable "device_passthrough" {
