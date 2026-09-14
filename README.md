@@ -10,6 +10,7 @@ From a fresh checkout on the Proxmox host:
 ./bootstrap-proxmox.sh
 cp .env.example .env
 # fill in the required values in .env
+just pve
 just init
 ```
 
