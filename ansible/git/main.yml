@@ -8,7 +8,6 @@
     gogs_install_path: /home/git/gogs
     gogs_repo_path: /home/git/repositories
     gogs_backup_path: /var/backups/gogs
-    gogs_backup_archive: "{{ gogs_backup_path }}/latest.zip"
     gogs_borg_repository: /mnt/backup/borg
     gogs_restore_marker_path: "{{ gogs_install_path }}/.restore-pending"
 
@@ -100,7 +99,7 @@
       vars:
         borg_service_name: gogs-borg
         borg_repository: "{{ gogs_borg_repository }}"
-        borg_source: "{{ gogs_backup_archive }}"
+        borg_source: "{{ gogs_backup_path }}/latest.zip"
 
     - name: Check for pending Gogs restore
       ansible.builtin.stat:
