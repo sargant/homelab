@@ -33,3 +33,11 @@ variable "device_passthrough" {
   type    = list(string)
   default = []
 }
+
+variable "bind_mounts" {
+  type = list(object({
+    source = string
+    path   = string
+  }))
+  default = []
+}
