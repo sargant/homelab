@@ -8,4 +8,11 @@ module "git" {
   memory    = 512
   swap      = 512
   disk_size = 8
+
+  bind_mounts = [
+    {
+      source = "/mnt/nas-backup/gogs"
+      path   = "/mnt/backup"
+    }
+  ]
 }
