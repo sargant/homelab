@@ -155,7 +155,12 @@
           - 302
       retries: 12
       delay: 5
-      when: not paperless_restore_required
+
+    - name: Mark Paperless restore complete
+      ansible.builtin.file:
+        path: "{{ paperless_restore_marker_path }}"
+        state: absent
+      when: paperless_restore_required
 
     - name: Configure Paperless scheduled backups
       block:
