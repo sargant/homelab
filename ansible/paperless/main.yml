@@ -95,11 +95,6 @@
       vars:
         samba_config_source: "{{ playbook_dir }}/assets/smb.conf.j2"
 
-    - name: Check for pending Paperless restore
-      ansible.builtin.stat:
-        path: "{{ paperless_restore_marker_path }}"
-      register: paperless_restore_marker
-
     - name: Configure Paperless Docker Compose services
       ansible.builtin.include_tasks: "{{ common_dir }}/configure-docker-compose.yml"
       vars:
@@ -109,7 +104,11 @@
           - broker
           - db
           - webserver
-      when: not paperless_restore_marker.stat.exists
+
+    - name: Check for pending Paperless restore
+      ansible.builtin.stat:
+        path: "{{ paperless_restore_marker_path }}"
+      register: paperless_restore_marker
 
     - name: Find newly created Paperless database volumes
       ansible.builtin.set_fact:
