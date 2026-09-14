@@ -11,6 +11,8 @@ WorkingDirectory={{ gogs_install_path }}
 Environment=HOME=/home/git
 Environment=USER=git
 ExecStart={{ gogs_install_path }}/gogs web
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 Restart=on-failure
 
 [Install]
