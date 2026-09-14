@@ -1,83 +1,11 @@
-resource "unifi_client" "tailscale" {
-  mac              = local.hosts.tailscale.mac
-  name             = "Tailscale Gateway"
-  fixed_ip         = local.hosts.tailscale.ip
-  local_dns_record = local.hosts.tailscale.dns
-}
+module "tailscale" {
+  source = "./modules/debian-lxc"
 
-resource "time_sleep" "tailscale_dhcp" {
-  create_duration = "10s"
+  host             = local.hosts.tailscale
+  display_name     = "Tailscale Gateway"
+  vm_id            = 1021
+  template_file_id = proxmox_download_file.debian_13.id
 
-  triggers = {
-    client_id        = unifi_client.tailscale.id
-    mac              = unifi_client.tailscale.mac
-    fixed_ip         = unifi_client.tailscale.fixed_ip
-    local_dns_record = unifi_client.tailscale.local_dns_record
-  }
-}
-
-resource "proxmox_virtual_environment_container" "tailscale" {
-  node_name = "vm-host"
-  vm_id     = 1021
-
-  cpu {
-    architecture = "amd64"
-    cores        = 1
-  }
-
-  memory {
-    dedicated = 256
-    swap      = 256
-  }
-
-  disk {
-    datastore_id = "local-lvm"
-    size         = 8
-  }
-
-  features {
-    nesting = true
-  }
-
-  device_passthrough {
-    path = "/dev/net/tun"
-  }
-
-  initialization {
-    hostname = "tailscale"
-
-    user_account {
-      keys = [
-        trimspace(file("/root/.ssh/vm-management.pub"))
-      ]
-    }
-
-    ip_config {
-      ipv4 {
-        address = "dhcp"
-      }
-
-      ipv6 {
-        address = "auto"
-      }
-    }
-  }
-
-  network_interface {
-    name        = "eth0"
-    bridge      = "vmbr0"
-    firewall    = true
-    mac_address = local.hosts.tailscale.mac
-  }
-
-  operating_system {
-    template_file_id = proxmox_download_file.debian_13.id
-    type             = "debian"
-  }
-
-  start_on_boot = true
-  started       = true
-  unprivileged  = true
-
-  depends_on = [time_sleep.tailscale_dhcp]
+  ipv6_address      = "auto"
+  device_passthrough = ["/dev/net/tun"]
 }
