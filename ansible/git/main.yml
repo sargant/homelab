@@ -103,77 +103,27 @@
         group: root
         mode: "0700"
 
-    # A missing database means this is either a genuinely clean install or a
-    # replacement host that should restore from Borg. Existing installations
-    # never restore automatically. The marker keeps interrupted restores on
-    # the restore route even if a partial attempt has already created the DB.
-    - name: Check for existing Gogs database
-      ansible.builtin.stat:
-        path: "{{ gogs_install_path }}/data/gogs.db"
-      register: gogs_database
-
     - name: Check for pending Gogs restore
       ansible.builtin.stat:
         path: "{{ gogs_restore_marker_path }}"
       register: gogs_restore_marker
 
-    - name: Read pending Gogs restore archive
-      ansible.builtin.slurp:
-        src: "{{ gogs_restore_marker_path }}"
-      register: gogs_restore_marker_content
-      when: gogs_restore_marker.stat.exists
+    - name: Check for existing Gogs database
+      ansible.builtin.stat:
+        path: "{{ gogs_install_path }}/data/gogs.db"
+      register: gogs_database
 
-    - name: Select pending Gogs restore archive
+    - name: Decide whether to restore Gogs
       ansible.builtin.set_fact:
-        gogs_restore_archive: "{{ gogs_restore_marker_content.content | b64decode | trim }}"
-      when: gogs_restore_marker.stat.exists
-
-    - name: Check pending Gogs restore archive
-      ansible.builtin.assert:
-        that:
-          - gogs_restore_archive | length > 0
-        fail_msg: Pending Gogs restore does not contain an archive name.
-      when: gogs_restore_marker.stat.exists
-
-    - name: Find latest Gogs backup
-      ansible.builtin.command:
-        argv:
-          - borg
-          - list
-          - --last
-          - "1"
-          - --format
-          - "{archive}{NL}"
-          - "{{ gogs_borg_repository }}"
-      register: gogs_backup_list
-      changed_when: false
-      when:
-        - not gogs_database.stat.exists
-        - not gogs_restore_marker.stat.exists
-      environment:
-        BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
-
-    - name: Select latest Gogs restore archive
-      ansible.builtin.set_fact:
-        gogs_restore_archive: "{{ gogs_backup_list.stdout | trim }}"
-      when:
-        - not gogs_database.stat.exists
-        - not gogs_restore_marker.stat.exists
-
-    - name: Record pending Gogs restore
-      ansible.builtin.copy:
-        dest: "{{ gogs_restore_marker_path }}"
-        content: "{{ gogs_restore_archive }}\n"
-        owner: root
-        group: root
-        mode: "0600"
-      when:
-        - gogs_restore_archive | default('') | length > 0
-        - not gogs_restore_marker.stat.exists
+        gogs_restore_required: >-
+          {{
+            gogs_restore_marker.stat.exists
+            or not gogs_database.stat.exists
+          }}
 
     - name: Restore Gogs from backup
       ansible.builtin.include_tasks: restore-from-backup.yml
-      when: gogs_restore_archive | default('') | length > 0
+      when: gogs_restore_required
 
     - name: Create Gogs configuration directory
       ansible.builtin.file:
@@ -251,7 +201,7 @@
       ansible.builtin.file:
         path: "{{ gogs_restore_marker_path }}"
         state: absent
-      when: gogs_restore_archive | default('') | length > 0
+      when: gogs_restore_required
 
     - name: Configure Gogs backup service
       ansible.builtin.template:
