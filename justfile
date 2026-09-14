@@ -5,9 +5,13 @@ set dotenv-required
 default:
   @just --list
 
-# Initialize the Proxmox management host with Ansible.
-init:
+# Configure the Proxmox management host with Ansible.
+pve:
   cd ansible && ansible-playbook vm-host/main.yml
+
+# Initialize OpenTofu.
+init:
+  tofu -chdir=infra init
 
 # Update all known hosts and services with Ansible.
 update:
