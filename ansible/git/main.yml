@@ -3,6 +3,9 @@
   hosts: git
   gather_facts: false
 
+  vars:
+    gogs_version: "0.14.3"
+
   pre_tasks:
     - name: Trust SSH host key
       ansible.builtin.include_tasks: "{{ common_dir }}/trust-host.yml"
@@ -29,14 +32,14 @@
 
     - name: Download Gogs
       ansible.builtin.get_url:
-        url: https://github.com/gogs/gogs/releases/download/v0.14.3/gogs_v0.14.3_linux_amd64.tar.gz
-        dest: /tmp/gogs_v0.14.3_linux_amd64.tar.gz
+        url: "https://github.com/gogs/gogs/releases/download/v{{ gogs_version }}/gogs_v{{ gogs_version }}_linux_amd64.tar.gz"
+        dest: "/tmp/gogs_v{{ gogs_version }}_linux_amd64.tar.gz"
         checksum: sha256:c27fbd8337ebd661929389f5237bf601e09958d514835c99fad3b904c63bedb2
         mode: "0644"
 
     - name: Install Gogs
       ansible.builtin.unarchive:
-        src: /tmp/gogs_v0.14.3_linux_amd64.tar.gz
+        src: "/tmp/gogs_v{{ gogs_version }}_linux_amd64.tar.gz"
         dest: /home/git
         remote_src: true
         owner: git
