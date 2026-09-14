@@ -1,6 +1,6 @@
 resource "unifi_client" "paperless" {
   mac              = local.hosts.paperless.mac
-  name             = "Paperless"
+  name             = local.hosts.paperless.display_name
   fixed_ip         = local.hosts.paperless.ip
   local_dns_record = local.hosts.paperless.dns
 }
@@ -22,7 +22,7 @@ resource "proxmox_virtual_environment_file" "paperless_cloud_init" {
   node_name    = "vm-host"
 
   source_raw {
-    data = templatefile("${path.module}/debian-vm.yaml.tftpl", {
+    data = templatefile("${path.module}/templates/debian-vm.yaml.tftpl", {
       hostname           = local.hosts.paperless.hostname
       ssh_authorized_key = trimspace(file("/root/.ssh/vm-management.pub"))
     })
@@ -35,7 +35,7 @@ resource "proxmox_virtual_environment_vm" "paperless" {
   name        = local.hosts.paperless.hostname
   description = "Paperless application host"
   node_name   = "vm-host"
-  vm_id       = 1044
+  vm_id       = local.hosts.paperless.vm_id
 
   boot_order      = ["scsi0"]
   on_boot         = true
