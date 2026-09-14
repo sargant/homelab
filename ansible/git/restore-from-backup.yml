@@ -49,28 +49,16 @@
         group: root
         mode: "0600"
 
-    - name: Clear Gogs data before restore
-      ansible.builtin.file:
-        path: "{{ gogs_install_path }}/data"
-        state: absent
-
-    - name: Clear Gogs custom data before restore
+    - name: Clear Gogs state before restore
       ansible.builtin.file:
         path: "{{ item }}"
         state: absent
       loop:
+        - "{{ gogs_install_path }}/data"
         - "{{ gogs_install_path }}/custom"
         - "{{ gogs_install_path }}/custom.bak"
-
-    - name: Clear Gogs repositories before restore
-      ansible.builtin.file:
-        path: "{{ gogs_repo_path }}"
-        state: absent
-
-    - name: Clear local Gogs backup archive before restore
-      ansible.builtin.file:
-        path: "{{ gogs_backup_archive }}"
-        state: absent
+        - "{{ gogs_repo_path }}"
+        - "{{ gogs_backup_archive }}"
 
     - name: Restore Gogs backup archive from Borg
       ansible.builtin.command:
