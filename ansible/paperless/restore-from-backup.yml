@@ -1,54 +1,14 @@
 ---
-- name: Read pending Paperless restore archive
-  ansible.builtin.slurp:
-    src: "{{ paperless_restore_marker_path }}"
-  register: paperless_restore_marker_content
-  when: paperless_restore_marker.stat.exists
-
-- name: Select pending Paperless restore archive
-  ansible.builtin.set_fact:
-    paperless_restore_archive: "{{ paperless_restore_marker_content.content | b64decode | trim }}"
-  when: paperless_restore_marker.stat.exists
-
-- name: Check pending Paperless restore archive
-  ansible.builtin.assert:
-    that:
-      - paperless_restore_archive | length > 0
-    fail_msg: Pending Paperless restore does not contain an archive name.
-  when: paperless_restore_marker.stat.exists
-
-- name: Find latest Paperless backup
-  ansible.builtin.command:
-    argv:
-      - borg
-      - list
-      - --last
-      - "1"
-      - --format
-      - "{archive}{NL}"
-      - "{{ paperless_borg_repository }}"
-  register: paperless_backup_list
-  changed_when: false
-  when: not paperless_restore_marker.stat.exists
-  environment:
-    BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
-
-- name: Select latest Paperless restore archive
-  ansible.builtin.set_fact:
-    paperless_restore_archive: "{{ paperless_backup_list.stdout | trim }}"
-  when: not paperless_restore_marker.stat.exists
+- name: Prepare Paperless Borg restore
+  ansible.builtin.include_tasks: "{{ common_dir }}/prepare-borg-restore.yml"
+  vars:
+    borg_restore_marker_path: "{{ paperless_restore_marker_path }}"
+    borg_restore_pending: "{{ paperless_restore_marker.stat.exists }}"
+    borg_restore_repository: "{{ paperless_borg_repository }}"
 
 - name: Restore Paperless backup
-  when: paperless_restore_archive | default('') | length > 0
+  when: borg_restore_archive | default('') | length > 0
   block:
-    - name: Record pending Paperless restore
-      ansible.builtin.copy:
-        dest: "{{ paperless_restore_marker_path }}"
-        content: "{{ paperless_restore_archive }}\n"
-        owner: root
-        group: root
-        mode: "0600"
-
     - name: Reset Paperless before restore
       community.docker.docker_compose_v2:
         project_src: "{{ paperless_install_path }}"
@@ -65,7 +25,7 @@
         argv:
           - borg
           - extract
-          - "{{ paperless_borg_repository }}::{{ paperless_restore_archive }}"
+          - "{{ paperless_borg_repository }}::{{ borg_restore_archive }}"
           - export
         chdir: "{{ paperless_install_path }}"
       environment:
