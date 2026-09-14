@@ -82,11 +82,40 @@
         group: git
         mode: "0750"
 
-    - name: Configure Gogs backup NFS mount
-      ansible.builtin.include_tasks: "{{ common_dir }}/configure-nfs-mount.yml"
-      vars:
-        nfs_source: "{{ hostvars['nas'].ansible_host }}:/volume1/backup/gogs"
-        nfs_mountpoint: "{{ gogs_backup_mountpoint }}"
+    - name: Verify Gogs backup storage
+      block:
+        - name: Create Gogs backup storage probe
+          ansible.builtin.tempfile:
+            state: file
+            path: "{{ gogs_backup_mountpoint }}"
+            prefix: .ansible-storage-test-
+          register: gogs_backup_storage_probe
+          changed_when: false
+
+        - name: Write Gogs backup storage probe
+          ansible.builtin.copy:
+            dest: "{{ gogs_backup_storage_probe.path }}"
+            content: "ansible storage test\n"
+            mode: "0600"
+          changed_when: false
+
+        - name: Read Gogs backup storage probe
+          ansible.builtin.slurp:
+            src: "{{ gogs_backup_storage_probe.path }}"
+          register: gogs_backup_storage_probe_content
+
+        - name: Check Gogs backup storage probe
+          ansible.builtin.assert:
+            that:
+              - (gogs_backup_storage_probe_content.content | b64decode) == 'ansible storage test\n'
+            fail_msg: Backup storage read/write probe failed for {{ gogs_backup_mountpoint }}.
+      always:
+        - name: Remove Gogs backup storage probe
+          ansible.builtin.file:
+            path: "{{ gogs_backup_storage_probe.path }}"
+            state: absent
+          when: gogs_backup_storage_probe is defined and gogs_backup_storage_probe.path is defined
+          changed_when: false
 
     - name: Configure Gogs Borg backup
       ansible.builtin.include_tasks: "{{ common_dir }}/configure-borg-backup.yml"
