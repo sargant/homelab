@@ -36,9 +36,6 @@
       - --user
       - git
       - --
-      - env
-      - HOME=/home/git
-      - USER=git
       - "{{ gogs_install_path }}/gogs"
       - restore
       - --from
