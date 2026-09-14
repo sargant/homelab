@@ -7,6 +7,10 @@
     gogs_version: "0.14.3"
     gogs_install_path: /home/git/gogs
     gogs_repo_path: /home/git/repositories
+    gogs_backup_path: /var/backups/gogs
+    gogs_backup_archive: "{{ gogs_backup_path }}/latest.zip"
+    gogs_backup_mountpoint: /mnt/backup
+    gogs_borg_repository: "{{ gogs_backup_mountpoint }}/borg"
 
   pre_tasks:
     - name: Trust SSH host key
@@ -140,3 +144,45 @@
         - "'/install' not in (gogs_http.location | default(''))"
       retries: 12
       delay: 5
+
+    - name: Create Gogs backup directory
+      ansible.builtin.file:
+        path: "{{ gogs_backup_path }}"
+        state: directory
+        owner: git
+        group: git
+        mode: "0750"
+
+    - name: Configure Gogs backup NFS mount
+      ansible.builtin.include_tasks: "{{ common_dir }}/configure-nfs-mount.yml"
+      vars:
+        nfs_source: "{{ hostvars['nas'].ansible_host }}:/volume1/backup/gogs"
+        nfs_mountpoint: "{{ gogs_backup_mountpoint }}"
+
+    - name: Configure Gogs Borg backup
+      ansible.builtin.include_tasks: "{{ common_dir }}/configure-borg-backup.yml"
+      vars:
+        borg_service_name: gogs-borg
+        borg_repository: "{{ gogs_borg_repository }}"
+        borg_source: "{{ gogs_backup_archive }}"
+
+    - name: Configure Gogs backup service
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/assets/gogs-backup.service.j2"
+        dest: /etc/systemd/system/gogs-backup.service
+        mode: "0644"
+      register: gogs_backup_service
+
+    - name: Configure Gogs backup timer
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/assets/gogs-backup.timer"
+        dest: /etc/systemd/system/gogs-backup.timer
+        mode: "0644"
+      register: gogs_backup_timer
+
+    - name: Enable Gogs backup timer
+      ansible.builtin.systemd_service:
+        name: gogs-backup.timer
+        enabled: true
+        daemon_reload: "{{ gogs_backup_service.changed or gogs_backup_timer.changed }}"
+        state: "{{ 'restarted' if gogs_backup_timer.changed else 'started' }}"
