@@ -1,0 +1,24 @@
+RUN_MODE = prod
+
+[database]
+TYPE = sqlite3
+PATH = /home/git/gogs/data/gogs.db
+
+[repository]
+ROOT = /home/git/repositories
+DEFAULT_BRANCH = main
+
+[server]
+DOMAIN = git.home.arpa
+EXTERNAL_URL = http://git.home.arpa:3000/
+
+[session]
+PROVIDER = file
+
+[log]
+MODE = console
+LEVEL = Info
+
+[security]
+INSTALL_LOCK = true
+SECRET_KEY = {{ gogs_secret_key }}
