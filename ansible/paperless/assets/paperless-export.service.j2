@@ -9,6 +9,6 @@ StartLimitBurst=12
 [Service]
 Type=oneshot
 WorkingDirectory={{ paperless_install_path }}
-ExecStart=/usr/bin/docker compose exec -T webserver document_exporter /usr/src/paperless/export --delete
+ExecStart=/usr/bin/docker compose exec -T webserver document_exporter /usr/src/paperless/export --delete --use-folder-prefix --split-manifest --no-progress-bar
 Restart=on-failure
 RestartSec=30
