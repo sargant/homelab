@@ -1,6 +1,6 @@
 resource "unifi_client" "this" {
   mac              = var.host.mac
-  name             = var.display_name
+  name             = var.host.display_name
   fixed_ip         = var.host.ip
   local_dns_record = var.host.dns
 }
