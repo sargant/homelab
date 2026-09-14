@@ -5,7 +5,6 @@
 
   vars:
     tailscale_lan_interface: eth0
-    tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_AUTH_KEY') }}"
 
   pre_tasks:
     - name: Trust SSH host key
@@ -159,13 +158,21 @@
           In the Tailscale admin console, approve the pending {{ system_hostname }} machine,
           then rerun this playbook.
 
+    - name: Prompt for Tailscale auth key
+      ansible.builtin.pause:
+        prompt: >-
+          Tailscale auth key (Reusable off, tagged tag:server)
+        echo: false
+      register: tailscale_auth_key_prompt
+      no_log: true
+      when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
+
     - name: Require auth key when Tailscale needs login
       ansible.builtin.assert:
         that:
-          - tailscale_auth_key | length > 0
-        fail_msg: >-
-          TAILSCALE_AUTH_KEY must be set in the Ansible controller environment
-          when this node needs to join the tailnet.
+          - tailscale_auth_key_prompt.user_input | default('') | trim | length > 0
+        fail_msg: A Tailscale auth key is required to join this node to the tailnet.
+      no_log: true
       when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
 
     - name: Authenticate Tailscale
@@ -176,7 +183,7 @@
         --advertise-routes="{{ lan_subnet }}"
         --advertise-exit-node
       environment:
-        TS_AUTH_KEY: "{{ tailscale_auth_key }}"
+        TS_AUTH_KEY: "{{ tailscale_auth_key_prompt.user_input }}"
       no_log: true
       when: tailscale_status.stdout | trim in ["NeedsLogin", "NoState"]
 
