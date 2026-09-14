@@ -26,5 +26,6 @@ cat <<'EOF'
 Done. Next:
   cp .env.example .env
   # fill in the required values in .env
+  just pve
   just init
 EOF
