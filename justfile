@@ -23,12 +23,12 @@ apply:
 
 # Configure the print server after verifying its infrastructure is converged.
 print-server:
-  tofu -chdir=infra plan -target=proxmox_virtual_environment_container.print_server -detailed-exitcode -compact-warnings
+  tofu -chdir=infra plan -target=module.print_server -detailed-exitcode -compact-warnings
   cd ansible && ansible-playbook print-server/main.yml
 
 # Configure the Tailscale router after verifying its infrastructure is converged.
 tailscale:
-  tofu -chdir=infra plan -target=proxmox_virtual_environment_container.tailscale -detailed-exitcode -compact-warnings
+  tofu -chdir=infra plan -target=module.tailscale -detailed-exitcode -compact-warnings
   cd ansible && ansible-playbook tailscale/main.yml
 
 # Configure the Paperless host after verifying its infrastructure is converged.
