@@ -95,6 +95,10 @@
         borg_repository: "{{ gogs_borg_repository }}"
         borg_source: "{{ gogs_backup_archive }}"
 
+    # A missing database means this is either a genuinely clean install or a
+    # replacement host that should restore from Borg. Existing installations
+    # never restore automatically. The marker keeps interrupted restores on
+    # the restore route even if a partial attempt has already created the DB.
     - name: Check for existing Gogs database
       ansible.builtin.stat:
         path: "{{ gogs_install_path }}/data/gogs.db"
