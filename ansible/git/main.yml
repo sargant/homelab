@@ -9,8 +9,7 @@
     gogs_repo_path: /home/git/repositories
     gogs_backup_path: /var/backups/gogs
     gogs_backup_archive: "{{ gogs_backup_path }}/latest.zip"
-    gogs_backup_mountpoint: /mnt/backup
-    gogs_borg_repository: "{{ gogs_backup_mountpoint }}/borg"
+    gogs_borg_repository: /mnt/backup/borg
     gogs_restore_marker_path: "{{ gogs_install_path }}/.restore-pending"
 
   pre_tasks:
@@ -85,7 +84,7 @@
     - name: Probe Gogs backup storage
       ansible.builtin.tempfile:
         state: file
-        path: "{{ gogs_backup_mountpoint }}"
+        path: /mnt/backup
         prefix: .ansible-storage-test-
       register: gogs_backup_storage_probe
       changed_when: false
