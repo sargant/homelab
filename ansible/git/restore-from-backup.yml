@@ -17,7 +17,7 @@
         - "{{ gogs_install_path }}/custom"
         - "{{ gogs_install_path }}/custom.bak"
         - "{{ gogs_repo_path }}"
-        - "{{ gogs_backup_archive }}"
+        - "{{ gogs_backup_path }}/latest.zip"
 
     - name: Restore Gogs backup archive from Borg
       ansible.builtin.command:
@@ -25,14 +25,14 @@
           - borg
           - extract
           - "{{ gogs_borg_repository }}::{{ borg_restore_archive }}"
-          - "{{ gogs_backup_archive | basename }}"
+          - latest.zip
         chdir: "{{ gogs_backup_path }}"
       environment:
         BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: "yes"
 
     - name: Set restored Gogs backup archive ownership
       ansible.builtin.file:
-        path: "{{ gogs_backup_archive }}"
+        path: "{{ gogs_backup_path }}/latest.zip"
         state: file
         owner: git
         group: git
@@ -48,4 +48,4 @@
           - "{{ gogs_install_path }}/gogs"
           - restore
           - --from
-          - "{{ gogs_backup_archive }}"
+          - "{{ gogs_backup_path }}/latest.zip"
