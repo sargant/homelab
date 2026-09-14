@@ -3,7 +3,6 @@
   ansible.builtin.include_tasks: "{{ common_dir }}/prepare-borg-restore.yml"
   vars:
     borg_restore_marker_path: "{{ paperless_restore_marker_path }}"
-    borg_restore_pending: "{{ paperless_restore_marker.stat.exists }}"
     borg_restore_repository: "{{ paperless_borg_repository }}"
 
 - name: Restore Paperless backup
