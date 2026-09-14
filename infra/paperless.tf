@@ -22,7 +22,7 @@ resource "proxmox_virtual_environment_file" "paperless_cloud_init" {
   node_name    = "vm-host"
 
   source_raw {
-    data = templatefile("${path.module}/debian-vm.yaml.tftpl", {
+    data = templatefile("${path.module}/templates/debian-vm.yaml.tftpl", {
       hostname           = local.hosts.paperless.hostname
       ssh_authorized_key = trimspace(file("/root/.ssh/vm-management.pub"))
     })
