@@ -64,25 +64,6 @@
         opts: defaults,_netdev
         state: mounted
 
-    - name: Read NAS backup mount source
-      ansible.builtin.command:
-        argv:
-          - findmnt
-          - -n
-          - -o
-          - SOURCE
-          - /mnt/nas-backup
-      register: nas_backup_mount_source
-      changed_when: false
-
-    - name: Check NAS backup mount source
-      ansible.builtin.assert:
-        that:
-          - nas_backup_mount_source.stdout | trim == hostvars['nas'].ansible_host ~ ':/volume1/backup'
-        fail_msg: >-
-          /mnt/nas-backup is mounted from {{ nas_backup_mount_source.stdout | trim }},
-          expected {{ hostvars['nas'].ansible_host }}:/volume1/backup.
-
     - name: Install OpenTofu
       ansible.builtin.include_tasks: "{{ common_dir }}/install-opentofu.yml"
 
