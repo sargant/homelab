@@ -18,7 +18,7 @@ resource "time_sleep" "dhcp" {
 
 resource "proxmox_virtual_environment_container" "this" {
   node_name = "vm-host"
-  vm_id     = var.vm_id
+  vm_id     = var.host.vm_id
 
   cpu {
     architecture = "amd64"
@@ -76,7 +76,7 @@ resource "proxmox_virtual_environment_container" "this" {
   }
 
   operating_system {
-    template_file_id = "local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst"
+    template_file_id = var.debian_template_id
     type             = "debian"
   }
 

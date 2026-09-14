@@ -4,6 +4,7 @@ variable "host" {
     mac      = string
     ip       = string
     dns      = string
+    vm_id    = number
   })
 }
 
@@ -11,8 +12,8 @@ variable "display_name" {
   type = string
 }
 
-variable "vm_id" {
-  type = number
+variable "debian_template_id" {
+  type = string
 }
 
 variable "cores" {
