@@ -98,10 +98,6 @@
         src: /home/git/gogs/custom/conf/secret_key
       register: gogs_secret_key_file
 
-    - name: Set Gogs secret key
-      ansible.builtin.set_fact:
-        gogs_secret_key: "{{ gogs_secret_key_file.content | b64decode | trim }}"
-
     - name: Configure Gogs
       ansible.builtin.template:
         src: "{{ playbook_dir }}/assets/app.ini.j2"
