@@ -2,7 +2,6 @@ module "tailscale" {
   source = "./modules/debian-lxc"
 
   host               = local.hosts.tailscale
-  display_name       = "Tailscale Gateway"
   debian_template_id = proxmox_download_file.debian_13.id
 
   cores     = 1
